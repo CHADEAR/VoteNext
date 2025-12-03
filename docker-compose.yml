@@ -1,0 +1,45 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16
+    container_name: vote_next_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: vote_next
+    ports:
+      - "5433:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+  server:
+    build: ./vote_next_server
+    container_name: vote_next_server
+    env_file:
+      - ./vote_next_server/.env
+    depends_on:
+      - db
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./vote_next_server:/app
+      - /app/node_modules
+    command: ["npm", "run", "dev"]
+
+  client:
+    build: ./vote_next_client
+    container_name: vote_next_client
+    env_file:
+      - ./vote_next_client/.env
+    depends_on:
+      - server
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./vote_next_client:/app
+      - /app/node_modules
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]
+
+volumes:
+  db_data:

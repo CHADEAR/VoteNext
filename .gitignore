@@ -1,0 +1,16 @@
+# Node modules
+vote_next_server/node_modules/
+vote_next_client/node_modules/
+
+# Environment files
+*.env
+*.env.local
+vote_next_server/.env
+vote_next_client/.env
+
+# Logs
+*.log
+npm-debug.log*
+
+# Docker artifacts
+db_data/
