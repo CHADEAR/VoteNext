@@ -20,21 +20,23 @@ services:
       - "4000:4000"
     volumes:
       - ./vote_next_server:/app
-      - /app/node_modules
     command: ["npm", "run", "dev"]
 
   client:
-    build: ./vote_next_client
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ./vote_next_client:/app
     env_file:
       - ./vote_next_client/.env
     depends_on:
       - server
     ports:
       - "5173:5173"
-    volumes:
-      - ./vote_next_client:/app
-      - /app/node_modules
-    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"]
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+      - CHOKIDAR_INTERVAL=300
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 5173"
 
 volumes:
   db_data:
