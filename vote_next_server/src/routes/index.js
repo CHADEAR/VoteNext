@@ -1,14 +1,15 @@
 // vote_next_server/src/routes/index.js
 const express = require("express");
 const healthRoutes = require("../modules/health/health.routes");
-const adminRoutes = require("../modules/admin/admin.routes"); // ✅ นี่สำคัญ
+const adminRoutes = require("../modules/admin/admin.routes");
+const showRoutes = require("../modules/shows/shows.routes");
+const roomRoutes = require("../modules/rooms/rooms.routes"); 
 
 const router = express.Router();
 
-// เส้น Health Check
 router.use("/health", healthRoutes);
-
-// เส้น Admin
-router.use("/admin", adminRoutes); // ✅ map /api/admin → admin.routes
+router.use("/admin", adminRoutes);
+router.use("/shows", showRoutes);
+router.use("/rooms", roomRoutes); 
 
 module.exports = router;
