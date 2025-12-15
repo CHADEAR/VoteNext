@@ -2,8 +2,14 @@ FROM node:20-alpine
 
 WORKDIR /app
 
+# ปิดโปรดักชันโหมด (สำคัญ!!)
+ENV NODE_ENV=development
+ENV NPM_CONFIG_PRODUCTION=false
+
 COPY package*.json ./
-RUN npm install
+
+# ติดตั้ง devDependencies
+RUN npm install --include=dev
 
 COPY . .
 
