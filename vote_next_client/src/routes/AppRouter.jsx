@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 import AdminLoginPage from "../pages/admin/AdminLoginPage";
 import AdminDashboardPage from "../pages/admin/AdminDashboardPage";
+import CreateVotePoll from "../pages/admin/CreateVotePoll";
 import VoteEnterEmailPage from "../pages/voter/VoteEnterEmailPage";
 import StageRealtimePage from "../pages/stage/StageRealtimePage";
 
@@ -12,7 +13,8 @@ export default function AppRouter() {
       <Routes>
         {/* Admin */}
         <Route path="/admin/login" element={<AdminLoginPage />} />
-        <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
+        <Route path="/" element={<AdminDashboardPage />} />
+        <Route path="/admin/create-poll" element={<CreateVotePoll />} />
 
         {/* Voter */}
         <Route path="/vote" element={<VoteEnterEmailPage />} />
