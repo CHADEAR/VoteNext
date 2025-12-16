@@ -172,7 +172,7 @@ const CreateVotePoll = () => {
   return (
     <div className="create-vote-poll">
       <header className="header">
-        <div className="logo">StageLink</div>
+        <div className="logo">VoteNext</div>
         <nav>
           <a href="/" className="nav-link">Home</a>
           <a href="/profile" className="nav-link">
@@ -284,11 +284,7 @@ const CreateVotePoll = () => {
                     value={formData.startTime}
                     onChange={(e) => setFormData(prev => ({ ...prev, startTime: e.target.value }))}
                     className="time-input"
-                  />
-                  <div className="ampm-buttons">
-                    <button type="button" className="ampm-btn active">AM</button>
-                    <button type="button" className="ampm-btn">PM</button>
-                  </div>
+                  />              
                 </div>
                 <div className="time-picker">
                   <span>End with</span>
@@ -298,10 +294,6 @@ const CreateVotePoll = () => {
                     onChange={(e) => setFormData(prev => ({ ...prev, endTime: e.target.value }))}
                     className="time-input"
                   />
-                  <div className="ampm-buttons">
-                    <button type="button" className="ampm-btn active">AM</button>
-                    <button type="button" className="ampm-btn">PM</button>
-                  </div>
                 </div>
               </div>
             )}

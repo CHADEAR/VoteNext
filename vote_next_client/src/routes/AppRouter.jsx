@@ -1,8 +1,8 @@
 import React from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
-import AdminLoginPage from "../pages/admin/AdminLoginPage";
-import AdminDashboardPage from "../pages/admin/AdminDashboardPage";
+import AdminLoginPage from "../pages/admin/AdminLogin";
+import AdminDashboardPage from "../pages/admin/AdminDashboard";
 import CreateVotePoll from "../pages/admin/CreateVotePoll";
 import VoteEnterEmailPage from "../pages/voter/VoteEnterEmailPage";
 import StageRealtimePage from "../pages/stage/StageRealtimePage";

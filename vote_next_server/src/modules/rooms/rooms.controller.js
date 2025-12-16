@@ -109,3 +109,20 @@ exports.createRoom = async (req, res) => {
     });
   }
 };
+
+// GET /api/rooms
+exports.getRooms = async (_req, res) => {
+  try {
+    const rooms = await roomService.getRoomsWithContestants();
+    return res.json({
+      success: true,
+      data: rooms,
+    });
+  } catch (error) {
+    console.error("Error fetching rooms:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "เกิดข้อผิดพลาดในการดึงข้อมูลโพล",
+    });
+  }
+};

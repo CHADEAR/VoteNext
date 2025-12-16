@@ -128,4 +128,75 @@ async function createRoomWithContestants({
 
 module.exports = {
   createRoomWithContestants,
+  getRoomsWithContestants,
 };
+
+// ดึงรายการ rooms (rounds) พร้อม contestants
+async function getRoomsWithContestants() {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      `
+      SELECT
+        r.id AS round_id,
+        r.round_name,
+        r.description AS round_description,
+        r.status,
+        r.start_time,
+        r.end_time,
+        r.public_slug,
+        r.vote_mode,
+        r.created_at AS round_created_at,
+
+        s.id AS show_id,
+        s.title AS show_title,
+        s.description AS show_description,
+        s.created_at AS show_created_at,
+
+        c.id AS contestant_id,
+        c.stage_name,
+        c.image_url,
+        c.order_number
+      FROM rounds r
+      JOIN shows s ON r.show_id = s.id
+      LEFT JOIN contestants c ON c.show_id = s.id
+      ORDER BY r.created_at DESC, c.order_number ASC;
+      `
+    );
+
+    const map = new Map();
+
+    for (const row of result.rows) {
+      const roundId = row.round_id;
+      if (!map.has(roundId)) {
+        map.set(roundId, {
+          round_id: roundId,
+          show_id: row.show_id,
+          title: row.round_name || row.show_title,
+          description: row.round_description || row.show_description || "",
+          status: row.status,
+          start_time: row.start_time,
+          end_time: row.end_time,
+          vote_mode: row.vote_mode,
+          public_slug: row.public_slug,
+          public_url: buildPublicUrl(row.public_slug),
+          created_at: row.round_created_at,
+          contestants: [],
+        });
+      }
+
+      if (row.contestant_id) {
+        map.get(roundId).contestants.push({
+          id: row.contestant_id,
+          stage_name: row.stage_name,
+          image_url: row.image_url,
+          order_number: row.order_number,
+        });
+      }
+    }
+
+    return Array.from(map.values());
+  } finally {
+    client.release();
+  }
+}

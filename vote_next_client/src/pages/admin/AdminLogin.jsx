@@ -1,9 +1,9 @@
 // src/pages/admin/AdminLoginPage.jsx
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { adminLogin } from "../../service/adminApi";
+import { adminLogin } from "../../services/auth.service";
 import logo from '../../assets/Black_White_Modern_Bold_Design_Studio_Logo-removebg-preview.png';
-import "./AdminLoginPage.css"; 
+import "./AdminLogin.css"; 
 
 export default function AdminLoginPage() {
   const navigate = useNavigate();
@@ -33,7 +33,7 @@ export default function AdminLoginPage() {
       localStorage.setItem("votenext_admin", JSON.stringify(admin));
 
       setInfo("Login สำเร็จ กำลังเปลี่ยนหน้า...");
-      navigate("/admin/dashboard");
+      navigate("/");
     } catch (err) {
       console.error(err);
       const msg =

@@ -12,7 +12,8 @@ const cpUpload = upload.fields([
   // Add more if you expect more images
 ]);
 
-// Final path: POST /api/rooms  (mounted from src/routes/index.js with base "/rooms")
+// Final path: /api/rooms
+router.get('/', roomsController.getRooms);
 router.post('/', cpUpload, roomsController.createRoom);
 
 module.exports = router;
