@@ -86,7 +86,7 @@ async function createRoomWithContestants({
        RETURNING id, show_id, round_name, description, status, start_time, end_time, created_by, created_at, public_slug, vote_mode`,
       [
         show.id,
-        title,          // ใช้ชื่อเดียวกับ room
+        title, // ใช้ชื่อเดียวกับ room
         description,
         startTime || null,
         endTime || null,
@@ -110,10 +110,11 @@ async function createRoomWithContestants({
       title: round.round_name,
       description: round.description,
       status: round.status,
+      start_time: round.start_time,
+      end_time: round.end_time,
       vote_mode: round.vote_mode,
       public_slug: round.public_slug,
       public_url: publicUrl,
-
       show,
       contestants: contestantRows,
     };

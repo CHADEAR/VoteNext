@@ -27,13 +27,16 @@ export const createVotePoll = async (pollData) => {
 
     // Add start_time and end_time if counter is auto
     if (pollData.counterType === 'auto') {
+      // ใช้วันที่จาก startDate เสมอ (ในฟอร์มมี date picker แค่ตัวเดียว)
       if (pollData.startDate && pollData.startTime) {
         const startDateTime = new Date(`${pollData.startDate}T${pollData.startTime}`);
         formData.append('start_time', startDateTime.toISOString());
       }
-      
-      if (pollData.endDate && pollData.endTime) {
-        const endDateTime = new Date(`${pollData.endDate}T${pollData.endTime}`);
+
+      // ถ้าไม่ได้ระบุ endDate ให้ใช้วันเดียวกับ startDate
+      const endDate = pollData.endDate || pollData.startDate;
+      if (endDate && pollData.endTime) {
+        const endDateTime = new Date(`${endDate}T${pollData.endTime}`);
         formData.append('end_time', endDateTime.toISOString());
       }
     }

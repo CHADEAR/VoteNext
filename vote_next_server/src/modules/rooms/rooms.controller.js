@@ -14,6 +14,10 @@ exports.createRoom = async (req, res) => {
       });
     }
 
+    // debug log โครงสร้างที่ได้รับจาก frontend (ช่วยเช็คว่า field ชื่ออะไร)
+    console.log("createRoom req.body keys:", Object.keys(req.body || {}));
+    console.log("createRoom req.files keys:", Object.keys(req.files || {}));
+
     // -----------------------------
     // แปลง body ของ multipart/form-data
     // ให้กลายเป็น array ของ contestants แบบที่ service ใช้งานได้
@@ -23,37 +27,64 @@ exports.createRoom = async (req, res) => {
     //   contestants[0][order_number]
     // -----------------------------
     const contestants = [];
-    const indices = new Set();
 
-    Object.keys(req.body || {}).forEach((key) => {
-      const match = key.match(/^contestants\[(\d+)\]\[(.+)\]$/);
-      if (match) {
-        indices.add(parseInt(match[1], 10));
-      }
-    });
+    // case 1: body มีโครงสร้างเป็น req.body.contestants (เช่น จาก qs parsing)
+    if (req.body.contestants) {
+      const contestantData = Array.isArray(req.body.contestants)
+        ? req.body.contestants
+        : [req.body.contestants];
 
-    const sortedIndices = Array.from(indices).sort((a, b) => a - b);
+      contestantData.forEach((contestant, index) => {
+        if (!contestant || !contestant.stage_name) return;
 
-    sortedIndices.forEach((index) => {
-      const stageName = req.body[`contestants[${index}][stage_name]`];
-      if (!stageName) return; // ข้ามถ้าไม่มีชื่อ
+        const contestantObj = {
+          stage_name: contestant.stage_name,
+          description: contestant.description || "",
+          order_number:
+            parseInt(contestant.order_number, 10) || index + 1,
+        };
 
-      const contestantObj = {
-        stage_name: stageName,
-        description: req.body[`contestants[${index}][description]`] || '',
-        order_number:
-          parseInt(req.body[`contestants[${index}][order_number]`], 10) ||
-          index + 1,
-      };
+        if (req.files && req.files[`contestants[${index}][image]`]) {
+          const file = req.files[`contestants[${index}][image]`][0];
+          contestantObj.image_url = `/uploads/${file.filename}`;
+        }
 
-      // Handle file upload if exists
-      if (req.files && req.files[`contestants[${index}][image]`]) {
-        const file = req.files[`contestants[${index}][image]`][0];
-        contestantObj.image_url = `/uploads/${file.filename}`;
-      }
+        contestants.push(contestantObj);
+      });
+    } else {
+      // case 2: field เป็นชื่อแบบ contestants[0][stage_name]
+      const indices = new Set();
 
-      contestants.push(contestantObj);
-    });
+      Object.keys(req.body || {}).forEach((key) => {
+        const match = key.match(/^contestants\[(\d+)\]\[(.+)\]$/);
+        if (match) {
+          indices.add(parseInt(match[1], 10));
+        }
+      });
+
+      const sortedIndices = Array.from(indices).sort((a, b) => a - b);
+
+      sortedIndices.forEach((index) => {
+        const stageName = req.body[`contestants[${index}][stage_name]`];
+        if (!stageName) return; // ข้ามถ้าไม่มีชื่อ
+
+        const contestantObj = {
+          stage_name: stageName,
+          description: req.body[`contestants[${index}][description]`] || "",
+          order_number:
+            parseInt(req.body[`contestants[${index}][order_number]`], 10) ||
+            index + 1,
+        };
+
+        // Handle file upload if exists
+        if (req.files && req.files[`contestants[${index}][image]`]) {
+          const file = req.files[`contestants[${index}][image]`][0];
+          contestantObj.image_url = `/uploads/${file.filename}`;
+        }
+
+        contestants.push(contestantObj);
+      });
+    }
 
     // Create room with contestants
     const newRoom = await roomService.createRoomWithContestants({
