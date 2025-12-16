@@ -85,38 +85,50 @@ const CreateVotePoll = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Basic validation
+    // Basic validation in Thai
     if (!formData.title.trim()) {
-      toast.error('Please enter a title for the poll');
+      toast.error('กรุณาใส่ชื่อโพล');
       return;
     }
 
-    if (formData.choices.length < 2) {
-      toast.error('Please add at least 2 choices');
+    // Filter out empty choices
+    const validChoices = formData.choices.filter(choice => choice.label.trim() !== '');
+    
+    if (validChoices.length < 2) {
+      toast.error('กรุณาเพิ่มตัวเลือกอย่างน้อย 2 ตัวเลือก');
       return;
     }
 
-    // Check if all choices have a label
-    const hasEmptyChoices = formData.choices.some(choice => !choice.label.trim());
-    if (hasEmptyChoices) {
-      toast.error('All choices must have a name');
+    // Check if any choice is missing required fields
+    const hasIncompleteChoices = validChoices.some(choice => !choice.label.trim());
+    if (hasIncompleteChoices) {
+      toast.error('กรุณากรอกชื่อตัวเลือกให้ครบทุกช่อง');
       return;
     }
 
     try {
       setIsSubmitting(true);
       
+      // Update form data with filtered choices
+      const submitData = {
+        ...formData,
+        choices: formData.choices.filter(choice => choice.label.trim() !== '')
+      };
+      
       // Call the API to create the poll
-      const response = await createVotePoll(formData);
+      const response = await createVotePoll(submitData);
       
-      // Show success message
-      toast.success('Vote poll created successfully!');
+      // Show success message in Thai
+      toast.success('สร้างโพลสำเร็จ!');
       
-      // Redirect to the poll management page or show success message with link
+      // Copy public URL to clipboard if available
       if (response.public_url) {
-        // Copy the public URL to clipboard
-        await navigator.clipboard.writeText(response.public_url);
-        toast.info('Public URL copied to clipboard!');
+        try {
+          await navigator.clipboard.writeText(response.public_url);
+          toast.info('คัดลอกลิงก์โหวตไปยังคลิปบอร์ดแล้ว');
+        } catch (err) {
+          console.error('Failed to copy URL: ', err);
+        }
       }
       
       // Reset form
@@ -134,31 +146,26 @@ const CreateVotePoll = () => {
         ]
       });
       
-      // Optionally navigate to the poll management page
-      // navigate('/admin/polls');
-      
     } catch (error) {
-    console.error('Error creating poll:', error);
-    let errorMessage = 'Failed to create poll. Please try again.';
-    
-    if (error.response) {
-      if (error.response.data && error.response.data.message) {
-        errorMessage = error.response.data.message;
-      } else if (error.response.status === 400) {
-        errorMessage = 'Invalid request. Please check your input.';
-      } else if (error.response.status === 500) {
-        errorMessage = 'Server error. Please try again later.';
+      console.error('Error creating poll:', error);
+      let errorMessage = 'เกิดข้อผิดพลาดในการสร้างโพล กรุณาลองใหม่อีกครั้ง';
+      
+      if (error.response) {
+        if (error.response.data && error.response.data.message) {
+          errorMessage = error.response.data.message;
+        } else if (error.response.status === 400) {
+          errorMessage = 'ข้อมูลไม่ถูกต้อง กรุณาตรวจสอบข้อมูลอีกครั้ง';
+        } else if (error.response.status === 500) {
+          errorMessage = 'เกิดข้อผิดพลาดที่เซิร์ฟเวอร์ กรุณาลองใหม่ในภายหลัง';
+        }
+      } else if (error.request) {
+        errorMessage = 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต';
       }
-    } else if (error.request) {
-      errorMessage = 'No response from server. Please check your connection.';
-    } else {
-      errorMessage = error.message || 'An unexpected error occurred.';
+      
+      toast.error(errorMessage);
+    } finally {
+      setIsSubmitting(false);
     }
-    
-    toast.error(errorMessage);
-  } finally {
-    setIsSubmitting(false);
-  }
   
   };
 

@@ -1,6 +1,7 @@
 // vote_next_server/src/app.js
 const express = require("express");
 const cors = require("cors");
+const path = require("path");
 const routes = require("./routes");
 const { errorHandler } = require("./middlewares/errorHandler");
 
@@ -34,6 +35,9 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // ใช้ router หลักที่ export มาจาก ./routes
 app.use("/api", routes);
+
+// Add this near your other middleware
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // middleware จัดการ error
 

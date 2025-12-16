@@ -1,47 +1,51 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:4000/api'; // Backend server runs on port 4000
+const API_BASE_URL = 'http://localhost:4000/api';
 
-const api = axios.create({
-  baseURL: API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
-// Update the createVotePoll function in api.js
+// Update the createVotePoll function to handle file uploads
 export const createVotePoll = async (pollData) => {
   try {
-    // Create base request data
-    const requestData = {
-      title: pollData.title,
-      description: pollData.description,
-      vote_mode: pollData.modeType === 'online+remote' ? 'hybrid' : pollData.modeType,
-      contestants: pollData.choices
-        .filter(choice => choice.label.trim() !== '') // Filter out empty choices
-        .map((choice, index) => ({
-          stage_name: choice.label,
-          description: choice.description,
-          image_url: choice.imagePreview || null,
-          order_number: index + 1,
-        })),
-    };
+    // Create FormData to handle file uploads
+    const formData = new FormData();
+    
+    // Add basic poll data
+    formData.append('title', pollData.title);
+    formData.append('description', pollData.description || '');
+    formData.append('voteMode', pollData.modeType === 'online+remote' ? 'hybrid' : pollData.modeType);
+
+    // Add choices
+    pollData.choices
+      .filter(choice => choice.label.trim() !== '')
+      .forEach((choice, index) => {
+        formData.append(`contestants[${index}][stage_name]`, choice.label);
+        formData.append(`contestants[${index}][description]`, choice.description || '');
+        if (choice.image) {
+          formData.append(`contestants[${index}][image]`, choice.image);
+        }
+        formData.append(`contestants[${index}][order_number]`, index + 1);
+      });
 
     // Add start_time and end_time if counter is auto
-    if (pollData.counterType === 'auto' && pollData.startDate && pollData.startTime) {
-      // Combine date and time strings and convert to ISO format
-      const startDateTime = new Date(`${pollData.startDate}T${pollData.startTime}`);
-      requestData.start_time = startDateTime.toISOString();
+    if (pollData.counterType === 'auto') {
+      if (pollData.startDate && pollData.startTime) {
+        const startDateTime = new Date(`${pollData.startDate}T${pollData.startTime}`);
+        formData.append('start_time', startDateTime.toISOString());
+      }
       
       if (pollData.endDate && pollData.endTime) {
         const endDateTime = new Date(`${pollData.endDate}T${pollData.endTime}`);
-        requestData.end_time = endDateTime.toISOString();
+        formData.append('end_time', endDateTime.toISOString());
       }
     }
 
-    console.log('Sending request data:', JSON.stringify(requestData, null, 2));
+    console.log('Sending form data:', Object.fromEntries(formData));
     
-    const response = await api.post('/rooms', requestData);
+    const response = await axios.post(`${API_BASE_URL}/rooms`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    
     return response.data;
   } catch (error) {
     console.error('Error creating vote poll:', error);

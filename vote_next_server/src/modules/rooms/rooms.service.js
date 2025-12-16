@@ -24,9 +24,16 @@ function buildPublicUrl(slug) {
  * สร้าง Room ใหม่:
  * - สร้าง show
  * - สร้าง contestants
- * - สร้าง round พร้อม vote_mode + public_slug
+ * - สร้าง round พร้อม vote_mode + public_slug + start_time/end_time
  */
-async function createRoomWithContestants({ title, description, voteMode, contestants }) {
+async function createRoomWithContestants({
+  title,
+  description,
+  voteMode,
+  contestants,
+  startTime,
+  endTime,
+}) {
   const client = await pool.connect();
 
   try {
@@ -72,17 +79,19 @@ async function createRoomWithContestants({ title, description, voteMode, contest
       }
     }
 
-    // 4) สร้าง round ผูกกับ show + vote_mode + slug
+    // 4) สร้าง round ผูกกับ show + vote_mode + slug + เวลาเริ่ม/จบโหวต
     const roundResult = await client.query(
-      `INSERT INTO rounds (show_id, round_name, description, status, created_by, public_slug, vote_mode)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO rounds (show_id, round_name, description, start_time, end_time, status, created_by, public_slug, vote_mode)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING id, show_id, round_name, description, status, start_time, end_time, created_by, created_at, public_slug, vote_mode`,
       [
         show.id,
         title,          // ใช้ชื่อเดียวกับ room
         description,
-        "pending",      // เริ่มต้นยังไม่เปิดโหวต
-        null,           // created_by: ภายหลังค่อยใช้ admin id
+        startTime || null,
+        endTime || null,
+        "pending", // เริ่มต้นยังไม่เปิดโหวต
+        null, // created_by: ภายหลังค่อยใช้ admin id
         slug,
         voteMode,
       ]
