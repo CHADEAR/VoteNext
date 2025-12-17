@@ -330,7 +330,7 @@ const CreateVotePoll = () => {
             {formData.counterType === 'auto' && (
               <div className="date-time-picker">
                 <div className="date-picker">
-                  <span className="date-label">Select day</span>
+                  <span className="date-label">Start date</span>
                   <input
                     type="date"
                     value={formData.startDate}
@@ -338,8 +338,17 @@ const CreateVotePoll = () => {
                     className="date-input"
                   />
                 </div>
+                <div className="date-picker">
+                  <span className="date-label">End date</span>
+                  <input
+                    type="date"
+                    value={formData.endDate}
+                    onChange={(e) => setFormData(prev => ({ ...prev, endDate: e.target.value }))}
+                    className="date-input"
+                  />
+                </div>
                 <div className="time-picker">
-                  <span>Start with</span>
+                  <span>Start time</span>
                   <input
                     type="time"
                     value={formData.startTime}
@@ -348,7 +357,7 @@ const CreateVotePoll = () => {
                   />              
                 </div>
                 <div className="time-picker">
-                  <span>End with</span>
+                  <span>End time</span>
                   <input
                     type="time"
                     value={formData.endTime}
