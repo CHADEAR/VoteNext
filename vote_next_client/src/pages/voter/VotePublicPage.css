@@ -1,0 +1,157 @@
+.vote-page {
+  min-height: 100vh;
+  background: #f8fafc;
+  color: #0f172a;
+  padding: 20px;
+  font-family: "Inter", sans-serif;
+}
+
+.vote-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  gap: 12px;
+}
+
+.vote-logo {
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+.vote-search input {
+  width: 240px;
+  max-width: 50vw;
+  padding: 8px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+}
+
+.poll-info h1 {
+  margin: 0;
+  font-size: 28px;
+}
+.poll-info p {
+  margin-top: 6px;
+  color: #475569;
+}
+
+.contestant-grid {
+  margin-top: 20px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.contestant-card {
+  background: #fff;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  display: flex;
+  flex-direction: column;
+}
+
+.contestant-card__image img {
+  width: 100%;
+  height: 160px;
+  object-fit: cover;
+}
+
+.contestant-card__body {
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.contestant-card__name {
+  font-weight: 600;
+}
+
+.btn-primary,
+.btn-secondary {
+  border: none;
+  cursor: pointer;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-weight: 600;
+}
+.btn-primary {
+  background: #111827;
+  color: #fff;
+}
+.btn-secondary {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.vote-status {
+  margin-top: 16px;
+  color: #475569;
+}
+.vote-status.error {
+  color: #b91c1c;
+}
+
+/* Modals */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+}
+.modal {
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px;
+  width: min(420px, 90vw);
+  position: relative;
+  text-align: center;
+}
+.modal__close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+}
+.modal__image img {
+  width: 100%;
+  max-height: 240px;
+  object-fit: cover;
+  border-radius: 10px;
+}
+.modal__desc {
+  margin-top: 8px;
+  color: #475569;
+}
+.modal__actions {
+  margin-top: 14px;
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 640px) {
+  .vote-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .vote-search input {
+    width: 100%;
+    max-width: 100%;
+  }
+  .contestant-card__body {
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-start;
+  }
+}
+

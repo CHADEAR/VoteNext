@@ -130,6 +130,7 @@ module.exports = {
   createRoomWithContestants,
   getRoomsWithContestants,
   updateRoomWithContestants,
+  getRoomBySlug,
 };
 
 // ดึงรายการ rooms (rounds) พร้อม contestants
@@ -199,6 +200,76 @@ async function getRoomsWithContestants() {
     }
 
     return Array.from(map.values());
+  } finally {
+    client.release();
+  }
+}
+
+// ดึง room ตาม public_slug
+async function getRoomBySlug(slug) {
+  const client = await pool.connect();
+  try {
+    const result = await client.query(
+      `
+      SELECT
+        r.id AS round_id,
+        r.round_name,
+        r.description AS round_description,
+        r.status,
+        r.start_time,
+        r.end_time,
+        r.public_slug,
+        r.vote_mode,
+        r.created_at AS round_created_at,
+
+        s.id AS show_id,
+        s.title AS show_title,
+        s.description AS show_description,
+        s.created_at AS show_created_at,
+
+        c.id AS contestant_id,
+        c.stage_name,
+        c.image_url,
+        c.order_number,
+        c.description AS contestant_description
+      FROM rounds r
+      JOIN shows s ON r.show_id = s.id
+      LEFT JOIN contestants c ON c.show_id = s.id
+      WHERE r.public_slug = $1
+      ORDER BY c.order_number ASC;
+      `,
+      [slug]
+    );
+
+    if (result.rowCount === 0) return null;
+
+    const rows = result.rows;
+    const first = rows[0];
+    const data = {
+      round_id: first.round_id,
+      title: first.round_name || first.show_title,
+      description: first.round_description || first.show_description || "",
+      status: first.status,
+      start_time: first.start_time,
+      end_time: first.end_time,
+      vote_mode: first.vote_mode,
+      public_slug: first.public_slug,
+      public_url: buildPublicUrl(first.public_slug),
+      contestants: [],
+    };
+
+    rows.forEach((row) => {
+      if (!row.contestant_id) return;
+      data.contestants.push({
+        id: row.contestant_id,
+        stage_name: row.stage_name,
+        description: row.contestant_description || "",
+        image_url: row.image_url,
+        order_number: row.order_number,
+      });
+    });
+
+    return data;
   } finally {
     client.release();
   }

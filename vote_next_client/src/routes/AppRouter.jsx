@@ -6,6 +6,7 @@ import AdminDashboardPage from "../pages/admin/AdminDashboard";
 import CreateVotePoll from "../pages/admin/CreateVotePoll";
 import VoteEnterEmailPage from "../pages/voter/VoteEnterEmailPage";
 import StageRealtimePage from "../pages/stage/StageRealtimePage";
+import VotePublicPage from "../pages/voter/VotePublicPage";
 
 export default function AppRouter() {
   return (
@@ -18,6 +19,7 @@ export default function AppRouter() {
 
         {/* Voter */}
         <Route path="/vote" element={<VoteEnterEmailPage />} />
+        <Route path="/vote/:public_slug" element={<VotePublicPage />} />
 
         {/* Stage */}
         <Route path="/stage/realtime" element={<StageRealtimePage />} />
