@@ -55,10 +55,10 @@ async function createRoomWithContestants({
       const orderNumber = index + 1;
 
       const result = await client.query(
-        `INSERT INTO contestants (show_id, stage_name, image_url, order_number)
-         VALUES ($1, $2, $3, $4)
-         RETURNING id, show_id, stage_name, image_url, order_number, created_at`,
-        [show.id, c.stage_name, c.image_url || null, orderNumber]
+        `INSERT INTO contestants (show_id, stage_name, image_url, order_number, description)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id, show_id, stage_name, image_url, order_number, description, created_at`,
+        [show.id, c.stage_name, c.image_url || null, orderNumber, c.description || ""]
       );
 
       contestantRows.push(result.rows[0]);
@@ -129,6 +129,7 @@ async function createRoomWithContestants({
 module.exports = {
   createRoomWithContestants,
   getRoomsWithContestants,
+  updateRoomWithContestants,
 };
 
 // ดึงรายการ rooms (rounds) พร้อม contestants
@@ -156,7 +157,8 @@ async function getRoomsWithContestants() {
         c.id AS contestant_id,
         c.stage_name,
         c.image_url,
-        c.order_number
+        c.order_number,
+        c.description AS contestant_description
       FROM rounds r
       JOIN shows s ON r.show_id = s.id
       LEFT JOIN contestants c ON c.show_id = s.id
@@ -191,11 +193,107 @@ async function getRoomsWithContestants() {
           stage_name: row.stage_name,
           image_url: row.image_url,
           order_number: row.order_number,
+          description: row.contestant_description || "",
         });
       }
     }
 
     return Array.from(map.values());
+  } finally {
+    client.release();
+  }
+}
+
+// อัปเดต room + contestants (แทนที่ contestants ทั้งชุด)
+async function updateRoomWithContestants({
+  roundId,
+  title,
+  description,
+  voteMode,
+  contestants,
+  startTime,
+  endTime,
+}) {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    // หา round + show
+    const roundResult = await client.query(
+      `SELECT r.id, r.show_id
+       FROM rounds r
+       WHERE r.id = $1`,
+      [roundId]
+    );
+    if (roundResult.rowCount === 0) {
+      throw new Error("ไม่พบรอบโหวตนี้");
+    }
+    const roundRow = roundResult.rows[0];
+
+    // อัปเดต show
+    await client.query(
+      `UPDATE shows SET title = $1, description = $2 WHERE id = $3`,
+      [title, description, roundRow.show_id]
+    );
+
+    // อัปเดต round
+    await client.query(
+      `UPDATE rounds
+       SET round_name = $1,
+           description = $2,
+           vote_mode = $3,
+           start_time = $4,
+           end_time = $5
+       WHERE id = $6`,
+      [title, description, voteMode, startTime || null, endTime || null, roundId]
+    );
+
+    // ลบ contestants เดิม
+    await client.query(
+      `DELETE FROM contestants WHERE show_id = $1`,
+      [roundRow.show_id]
+    );
+
+    // แทรก contestants ใหม่
+    const contestantRows = [];
+    for (let index = 0; index < contestants.length; index++) {
+      const c = contestants[index];
+      const orderNumber = index + 1;
+      const result = await client.query(
+        `INSERT INTO contestants (show_id, stage_name, image_url, order_number, description)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id, show_id, stage_name, image_url, order_number, created_at`,
+        [roundRow.show_id, c.stage_name, c.image_url || null, orderNumber, c.description || ""]
+      );
+      contestantRows.push(result.rows[0]);
+    }
+
+    await client.query("COMMIT");
+
+    // ดึง round ล่าสุด (รวม slug) เพื่อคืน response ครบ
+    const refreshed = await client.query(
+      `SELECT id, show_id, round_name, description, status, start_time, end_time, public_slug, vote_mode
+       FROM rounds WHERE id = $1`,
+      [roundId]
+    );
+    const round = refreshed.rows[0];
+
+    return {
+      round_id: round.id,
+      show_id: round.show_id,
+      title: round.round_name,
+      description: round.description,
+      status: round.status,
+      start_time: round.start_time,
+      end_time: round.end_time,
+      vote_mode: round.vote_mode,
+      public_slug: round.public_slug,
+      public_url: buildPublicUrl(round.public_slug),
+      contestants: contestantRows,
+    };
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
   } finally {
     client.release();
   }

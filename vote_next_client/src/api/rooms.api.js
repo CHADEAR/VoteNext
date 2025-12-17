@@ -10,3 +10,9 @@ export function createRoom(formData) {
   });
 }
 
+export function updateRoom(id, formData) {
+  return apiClient.put(`/rooms/${id}`, formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+}
+

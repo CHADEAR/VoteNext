@@ -55,6 +55,7 @@ export default function AdminDashboardPage() {
 
   const handleEdit = (room) => {
     if (room.status !== "pending") return;
+    console.log("room", room);
     navigate("/admin/create-poll", { state: { room } });
   };
 

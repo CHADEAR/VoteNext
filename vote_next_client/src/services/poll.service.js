@@ -1,4 +1,4 @@
-import { createRoom } from "../api/rooms.api";
+import { createRoom, updateRoom } from "../api/rooms.api";
 
 // Business logic: prepare formData for creating vote poll
 export const createVotePoll = async (pollData) => {
@@ -22,6 +22,9 @@ export const createVotePoll = async (pollData) => {
         `contestants[${index}][description]`,
         choice.description || ""
       );
+      if (choice.imageUrl && !choice.image) {
+        formData.append(`contestants[${index}][image_url]`, choice.imageUrl);
+      }
       if (choice.image) {
         formData.append(`contestants[${index}][image]`, choice.image);
       }
@@ -45,7 +48,10 @@ export const createVotePoll = async (pollData) => {
     }
   }
 
-  const response = await createRoom(formData);
+  const isEdit = !!pollData.round_id;
+  const response = isEdit
+    ? await updateRoom(pollData.round_id, formData)
+    : await createRoom(formData);
   return response.data;
 };
 

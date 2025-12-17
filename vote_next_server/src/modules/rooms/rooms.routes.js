@@ -15,5 +15,6 @@ const cpUpload = upload.fields([
 // Final path: /api/rooms
 router.get('/', roomsController.getRooms);
 router.post('/', cpUpload, roomsController.createRoom);
+router.put('/:id', cpUpload, roomsController.updateRoom);
 
 module.exports = router;

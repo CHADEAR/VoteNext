@@ -126,3 +126,111 @@ exports.getRooms = async (_req, res) => {
     });
   }
 };
+
+// PUT /api/rooms/:id
+exports.updateRoom = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const { title, description, voteMode, start_time, end_time } = req.body;
+
+    if (!title) {
+      return res.status(400).json({
+        success: false,
+        message: 'title จำเป็นต้องกรอก',
+      });
+    }
+
+    console.log("updateRoom req.body keys:", Object.keys(req.body || {}));
+    console.log("updateRoom req.files keys:", Object.keys(req.files || {}));
+
+    const contestants = [];
+
+    // case 1: body.contestants เป็น array/object
+    if (req.body.contestants) {
+      const contestantData = Array.isArray(req.body.contestants)
+        ? req.body.contestants
+        : [req.body.contestants];
+
+      contestantData.forEach((contestant, index) => {
+        if (!contestant || !contestant.stage_name) return;
+
+        const contestantObj = {
+          stage_name: contestant.stage_name,
+          description: contestant.description || "",
+          order_number:
+            parseInt(contestant.order_number, 10) || index + 1,
+        };
+
+        // keep existing image_url if provided
+        if (contestant.image_url) {
+          contestantObj.image_url = contestant.image_url;
+        }
+
+        if (req.files && req.files[`contestants[${index}][image]`]) {
+          const file = req.files[`contestants[${index}][image]`][0];
+          contestantObj.image_url = `/uploads/${file.filename}`;
+        }
+
+        contestants.push(contestantObj);
+      });
+    } else {
+      // case 2: field เป็นชื่อแบบ contestants[0][stage_name]
+      const indices = new Set();
+
+      Object.keys(req.body || {}).forEach((key) => {
+        const match = key.match(/^contestants\[(\d+)\]\[(.+)\]$/);
+        if (match) {
+          indices.add(parseInt(match[1], 10));
+        }
+      });
+
+      const sortedIndices = Array.from(indices).sort((a, b) => a - b);
+
+      sortedIndices.forEach((index) => {
+        const stageName = req.body[`contestants[${index}][stage_name]`];
+        if (!stageName) return;
+
+        const contestantObj = {
+          stage_name: stageName,
+          description: req.body[`contestants[${index}][description]`] || "",
+          order_number:
+            parseInt(req.body[`contestants[${index}][order_number]`], 10) ||
+            index + 1,
+        };
+
+        const imageUrl = req.body[`contestants[${index}][image_url]`];
+        if (imageUrl) {
+          contestantObj.image_url = imageUrl;
+        }
+
+        if (req.files && req.files[`contestants[${index}][image]`]) {
+          const file = req.files[`contestants[${index}][image]`][0];
+          contestantObj.image_url = `/uploads/${file.filename}`;
+        }
+
+        contestants.push(contestantObj);
+      });
+    }
+
+    const updated = await roomService.updateRoomWithContestants({
+      roundId: id,
+      title,
+      description,
+      voteMode,
+      contestants,
+      startTime: start_time,
+      endTime: end_time,
+    });
+
+    return res.json({
+      success: true,
+      data: updated,
+    });
+  } catch (error) {
+    console.error("Error updating room:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "เกิดข้อผิดพลาดในการแก้ไขโพล",
+    });
+  }
+};

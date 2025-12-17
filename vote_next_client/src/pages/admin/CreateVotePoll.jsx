@@ -1,11 +1,12 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { createVotePoll } from '../../services/api';
 import './CreateVotePoll.css';
 
 const CreateVotePoll = () => {
+  const location = useLocation();
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -80,7 +81,67 @@ const CreateVotePoll = () => {
   };
 
   const navigate = useNavigate();
+  const [editingId, setEditingId] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const buildImageUrl = (path) => {
+    if (!path) return null;
+    if (/^https?:\/\//i.test(path)) return path;
+    const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
+    const origin = apiBase.replace(/\/api\/?$/, '');
+    return `${origin}${path}`;
+  };
+
+  useEffect(() => {
+    const room = location.state?.room;
+    if (!room) return;
+
+    const toDate = (iso) => {
+      if (!iso) return '';
+      const d = new Date(iso);
+      const pad = (n) => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    };
+    const toTime = (iso) => {
+      if (!iso) return '00:00';
+      const d = new Date(iso);
+      const pad = (n) => String(n).padStart(2, '0');
+      return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    };
+
+    const modeType =
+      room.vote_mode === 'hybrid'
+        ? 'online+remote'
+        : room.vote_mode || 'online';
+
+    const mappedChoices =
+      (room.contestants || [])
+        .sort((a, b) => (a.order_number || 0) - (b.order_number || 0))
+        .map((c, idx) => ({
+          id: c.id || idx + 1,
+          label: c.stage_name || '',
+          description: c.description || c.detail || '',
+          image: null,
+          imagePreview: buildImageUrl(c.image_url),
+          imageUrl: c.image_url || '',
+        })) || [];
+
+    setFormData({
+      title: room.title || '',
+      description: room.description || '',
+      modeType,
+      counterType: room.start_time || room.end_time ? 'auto' : 'manual',
+      startDate: toDate(room.start_time),
+      endDate: toDate(room.end_time),
+      startTime: toTime(room.start_time),
+      endTime: toTime(room.end_time),
+      choices:
+        mappedChoices.length > 0
+          ? mappedChoices
+          : [{ id: 1, label: '', description: '', image: null, imagePreview: null }],
+    });
+    setEditingId(room.round_id || room.id || null);
+  }, [location.state]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -116,7 +177,7 @@ const CreateVotePoll = () => {
       };
       
       // Call the API to create the poll
-      const response = await createVotePoll(submitData);
+      const response = await createVotePoll({ ...submitData, round_id: editingId });
       
       // Show success message in Thai
       toast.success('สร้างโพลสำเร็จ!');
