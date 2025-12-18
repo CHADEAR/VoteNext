@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getRooms } from "../../services/rooms.service";
 import "./AdminDashboard.css";
+import { FiEye, FiShare2, FiEdit, FiTrash2 } from "react-icons/fi";
 
 const MODE_LABEL = {
   online: "Online",
@@ -11,10 +12,14 @@ const MODE_LABEL = {
 
 export default function AdminDashboardPage() {
   const navigate = useNavigate();
+
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [filter, setFilter] = useState("all");
+
+  const [modeFilter, setModeFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+
   const [shareLink, setShareLink] = useState("");
 
   useEffect(() => {
@@ -34,15 +39,22 @@ export default function AdminDashboardPage() {
   }, []);
 
   const filteredRooms = useMemo(() => {
-    if (filter === "all") return rooms;
-    return rooms.filter((r) => r.vote_mode === filter);
-  }, [filter, rooms]);
+    return rooms.filter((room) => {
+      const matchMode =
+        modeFilter === "all" || room.vote_mode === modeFilter;
+      const matchStatus =
+        statusFilter === "all" || room.status === statusFilter;
+      return matchMode && matchStatus;
+    });
+  }, [rooms, modeFilter, statusFilter]);
 
   const handleShare = (room) => {
-    const url = room.public_url || `${window.location.origin}/vote/${room.public_slug || room.round_id}`;
+    const url =
+      room.public_url ||
+      `${window.location.origin}/vote/${room.public_slug || room.round_id}`;
     setShareLink(url);
     if (navigator.clipboard && url) {
-      navigator.clipboard.writeText(url).catch(() => {});
+      navigator.clipboard.writeText(url).catch(() => { });
     }
   };
 
@@ -55,87 +67,145 @@ export default function AdminDashboardPage() {
 
   const handleEdit = (room) => {
     if (room.status !== "pending") return;
-    console.log("room", room);
     navigate("/admin/create-poll", { state: { room } });
   };
 
   const handleDelete = (room) => {
-    const ok = window.confirm(`ลบโพล "${room.title}" หรือไม่? (ยังไม่มี API ลบ จะลบเฉพาะในหน้านี้)`);
+    const ok = window.confirm(`ลบโพล "${room.title}" หรือไม่?`);
     if (!ok) return;
-    setRooms((prev) => prev.filter((r) => r.round_id !== room.round_id));
+    setRooms((prev) =>
+      prev.filter((r) => r.round_id !== room.round_id)
+    );
   };
 
-  const renderEmpty = () => (
-    <div className="admin-dashboard__empty">
-      <p>ยังไม่มีโพล</p>
-      <button className="primary" onClick={() => navigate("/admin/create-poll")}>
-        Create Poll
-      </button>
-    </div>
-  );
-
-  const renderList = () => (
-    <div className="admin-dashboard__list">
-      {filteredRooms.map((room) => (
-        <div key={room.round_id} className="poll-card">
-          <div className="poll-card__main">
-            <div className="poll-card__title">{room.title || "Untitled poll"}</div>
-            <div className="poll-card__meta">
-              <span>{MODE_LABEL[room.vote_mode] || room.vote_mode}</span>
-              {room.created_at && (
-                <span>
-                  {new Date(room.created_at).toLocaleDateString()}
-                </span>
-              )}
-            </div>
-          </div>
-          <div className="poll-card__actions">
-            <button onClick={() => handleView(room)} title="View">👁</button>
-            <button onClick={() => handleShare(room)} title="Share">🔗</button>
-            {room.status === "pending" && (
-              <button onClick={() => handleEdit(room)} title="Edit">✏️</button>
-            )}
-            <button onClick={() => handleDelete(room)} title="Delete">🗑</button>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
+  if (loading) {
+    return <div className="admin-dashboard__empty">กำลังโหลด...</div>;
+  }
 
   return (
-    <div className="admin-dashboard">
-      <header className="admin-dashboard__header">
-        <div>
-          <div className="logo">StageLink</div>
-          <h2>My Vote Poll</h2>
-        </div>
-        <div className="admin-dashboard__controls">
-          <select value={filter} onChange={(e) => setFilter(e.target.value)}>
+    <div className="dashboard">
+      {/* Top bar */}
+      <header className="topbar">
+        <div className="logo">VoteNext</div>
+        <div className="profile">profile</div>
+      </header>
+
+      <main className="dashboard-content">
+        <h1 className="page-title">My Vote Poll</h1>
+
+        {/* Controls */}
+        <div className="controls">
+          <div className="search-box">
+            🔍
+            <input placeholder="search box" />
+          </div>
+
+          {/* Status filter */}
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            <option value="all">all</option>
+            <option value="pending">pending</option>
+            <option value="ending">ending</option>
+          </select>
+
+          {/* Mode filter */}
+          <select
+            value={modeFilter}
+            onChange={(e) => setModeFilter(e.target.value)}
+          >
             <option value="all">All</option>
             <option value="online">Online</option>
             <option value="remote">Remote</option>
-            <option value="hybrid">Online + Remote</option>
+            <option value="hybrid">ทั้ง 2</option>
           </select>
-          <button className="primary" onClick={() => navigate("/admin/create-poll")}>
-            Create Poll
+
+          <button
+            className="create-btn"
+            onClick={() => navigate("/admin/create-poll")}
+          >
+            Create Poll ↗
           </button>
         </div>
-      </header>
 
-      {error && <div className="error">{error}</div>}
-      {loading ? (
-        <div className="admin-dashboard__empty">กำลังโหลด...</div>
-      ) : filteredRooms.length === 0 ? (
-        renderEmpty()
-      ) : (
-        renderList()
-      )}
+        {/* Error */}
+        {error && <div className="error">{error}</div>}
 
-      {shareLink && (
-        <div className="share-hint">
-          ลิงก์ถูกคัดลอกแล้ว: {shareLink}
-        </div>
-      )}
+        {/* List */}
+        {filteredRooms.length === 0 ? (
+          <div className="admin-dashboard__empty">
+            ยังไม่มีโพล
+          </div>
+        ) : (
+          <div className="poll-list">
+            {filteredRooms.map((room) => (
+              <div className="poll-card" key={room.round_id}>
+                <div className="poll-left">
+                  <div className="mode-icon">
+                    {room.vote_mode === "online" ? "📶" : "⬛"}
+                  </div>
+
+                  <div>
+                    <div className="poll-title">
+                      {room.title || "Untitled poll"}
+                    </div>
+                    <div className="poll-date">
+                      created at{" "}
+                      {new Date(room.created_at).toLocaleDateString()}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="poll-actions">
+                  <span className={`status ${room.status}`}>
+                    {room.status}
+                  </span>
+        
+                  <button
+                    className="action-btn"
+                    onClick={() => handleView(room)}
+                    title="Preview"
+                  >
+                    <FiEye />
+                  </button>
+
+                  <button
+                    className="action-btn"
+                    onClick={() => handleShare(room)}
+                    title="Share"
+                  >
+                    <FiShare2 />
+                  </button>
+
+                  <button
+                    className="action-btn"
+                    onClick={() => handleEdit(room)}
+                    title="Edit"
+                    disabled={room.status !== "pending"}
+                  >
+                    <FiEdit />
+                  </button>
+
+                  <button
+                    className="action-btn danger"
+                    onClick={() => handleDelete(room)}
+                    title="Delete"
+                  >
+                    <FiTrash2 />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {shareLink && (
+          <div className="share-hint">
+            ลิงก์ถูกคัดลอกแล้ว: {shareLink}
+          </div>
+        )}
+      </main>
     </div>
   );
 }

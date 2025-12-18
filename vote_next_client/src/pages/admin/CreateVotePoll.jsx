@@ -170,46 +170,63 @@ const CreateVotePoll = () => {
     try {
       setIsSubmitting(true);
       
-      // Update form data with filtered choices
+      // Prepare form data
       const submitData = {
         ...formData,
         choices: formData.choices.filter(choice => choice.label.trim() !== '')
       };
       
-      // Call the API to create the poll
-      const response = await createVotePoll({ ...submitData, round_id: editingId });
+      let response;
       
-      // Show success message in Thai
-      toast.success('สร้างโพลสำเร็จ!');
-      
-      // Copy public URL to clipboard if available
-      if (response.public_url) {
-        try {
-          await navigator.clipboard.writeText(response.public_url);
-          toast.info('คัดลอกลิงก์โหวตไปยังคลิปบอร์ดแล้ว');
-        } catch (err) {
-          console.error('Failed to copy URL: ', err);
+      if (editingId) {
+        // Update existing poll with PATCH
+        response = await createVotePoll({ 
+          ...submitData, 
+          round_id: editingId,
+          _method: 'PATCH' // Use PATCH for partial updates
+        });
+        toast.success('อัปเดตโพลสำเร็จ!');
+      } else {
+        // Create new poll
+        response = await createVotePoll(submitData);
+        toast.success('สร้างโพลสำเร็จ!');
+        
+        // Copy public URL to clipboard if available (only for new polls)
+        if (response.public_url) {
+          try {
+            await navigator.clipboard.writeText(response.public_url);
+            toast.info('คัดลอกลิงก์โหวตไปยังคลิปบอร์ดแล้ว');
+          } catch (err) {
+            console.error('Failed to copy URL: ', err);
+          }
         }
       }
       
-      // Reset form
-      setFormData({
-        title: '',
-        description: '',
-        modeType: 'online',
-        counterType: 'auto',
-        startDate: '',
-        endDate: '',
-        startTime: '00:00',
-        endTime: '00:00',
-        choices: [
-          { id: 1, label: '', description: '', image: null, imagePreview: null }
-        ]
-      });
+      // Reset form if not in edit mode
+      if (!editingId) {
+        setFormData({
+          title: '',
+          description: '',
+          modeType: 'online',
+          counterType: 'auto',
+          startDate: '',
+          endDate: '',
+          startTime: '00:00',
+          endTime: '00:00',
+          choices: [
+            { id: 1, label: '', description: '', image: null, imagePreview: null }
+          ]
+        });
+      }
+      
+      // Navigate back to the list after successful save
+      navigate('/admin/vote-polls');
       
     } catch (error) {
-      console.error('Error creating poll:', error);
-      let errorMessage = 'เกิดข้อผิดพลาดในการสร้างโพล กรุณาลองใหม่อีกครั้ง';
+      console.error('Error saving poll:', error);
+      let errorMessage = editingId 
+        ? 'เกิดข้อผิดพลาดในการอัปเดตโพล กรุณาลองใหม่อีกครั้ง' 
+        : 'เกิดข้อผิดพลาดในการสร้างโพล กรุณาลองใหม่อีกครั้ง';
       
       if (error.response) {
         if (error.response.data && error.response.data.message) {
@@ -432,13 +449,21 @@ const CreateVotePoll = () => {
           </div>
 
           <div className="form-actions">
-            <button type="button" className="btn btn-secondary">Previous</button>
+            <button 
+              type="button" 
+              className="btn btn-secondary"
+              onClick={() => navigate(-1)}
+            >
+              ย้อนกลับ
+            </button>
             <button 
               type="submit" 
-              className="create-btn"
+              className={`create-btn ${editingId ? 'save-btn' : ''}`}
               disabled={isSubmitting}
             >
-              {isSubmitting ? 'Creating...' : 'Create Poll'}
+              {isSubmitting 
+                ? 'กำลังบันทึก...' 
+                : editingId ? 'บันทึกการเปลี่ยนแปลง' : 'สร้างโพล'}
             </button>
           </div>
         </form>
