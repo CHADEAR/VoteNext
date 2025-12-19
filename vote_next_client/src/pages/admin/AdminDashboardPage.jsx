@@ -60,11 +60,11 @@ export default function AdminDashboardPage() {
   };
 
   const handleView = (room) => {
-    const url = room.public_slug
-      ? `/vote/${room.public_slug}`
-      : `/vote/${room.round_id || room.show_id}`;
-    navigate(url);
+    navigate(`/admin/preview/${room.round_id}`, {
+      state: { room }
+    });
   };
+
 
   const handleEdit = (room) => {
     if (room.status !== "pending") return;
@@ -162,7 +162,7 @@ export default function AdminDashboardPage() {
                   <span className={`status ${room.status}`}>
                     {room.status}
                   </span>
-        
+
                   <button
                     className="action-btn"
                     onClick={() => handleView(room)}

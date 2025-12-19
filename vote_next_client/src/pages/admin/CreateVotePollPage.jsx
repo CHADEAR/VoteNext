@@ -146,7 +146,7 @@ const CreateVotePoll = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     // Basic validation in Thai
     if (!formData.title.trim()) {
       toast.error('กรุณาใส่ชื่อโพล');
@@ -155,7 +155,7 @@ const CreateVotePoll = () => {
 
     // Filter out empty choices
     const validChoices = formData.choices.filter(choice => choice.label.trim() !== '');
-    
+
     if (validChoices.length < 2) {
       toast.error('กรุณาเพิ่มตัวเลือกอย่างน้อย 2 ตัวเลือก');
       return;
@@ -170,19 +170,19 @@ const CreateVotePoll = () => {
 
     try {
       setIsSubmitting(true);
-      
+
       // Prepare form data
       const submitData = {
         ...formData,
         choices: formData.choices.filter(choice => choice.label.trim() !== '')
       };
-      
+
       let response;
-      
+
       if (editingId) {
         // Update existing poll with PATCH
-        response = await createVotePoll({ 
-          ...submitData, 
+        response = await createVotePoll({
+          ...submitData,
           round_id: editingId,
           _method: 'PATCH' // Use PATCH for partial updates
         });
@@ -191,7 +191,7 @@ const CreateVotePoll = () => {
         // Create new poll
         response = await createVotePoll(submitData);
         toast.success('สร้างโพลสำเร็จ!');
-        
+
         // Copy public URL to clipboard if available (only for new polls)
         if (response.public_url) {
           try {
@@ -202,7 +202,7 @@ const CreateVotePoll = () => {
           }
         }
       }
-      
+
       // Reset form if not in edit mode
       if (!editingId) {
         setFormData({
@@ -219,16 +219,16 @@ const CreateVotePoll = () => {
           ]
         });
       }
-      
+
       // Navigate back to the list after successful save
       navigate('/admin/vote-polls');
-      
+
     } catch (error) {
       console.error('Error saving poll:', error);
-      let errorMessage = editingId 
-        ? 'เกิดข้อผิดพลาดในการอัปเดตโพล กรุณาลองใหม่อีกครั้ง' 
+      let errorMessage = editingId
+        ? 'เกิดข้อผิดพลาดในการอัปเดตโพล กรุณาลองใหม่อีกครั้ง'
         : 'เกิดข้อผิดพลาดในการสร้างโพล กรุณาลองใหม่อีกครั้ง';
-      
+
       if (error.response) {
         if (error.response.data && error.response.data.message) {
           errorMessage = error.response.data.message;
@@ -240,12 +240,12 @@ const CreateVotePoll = () => {
       } else if (error.request) {
         errorMessage = 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต';
       }
-      
+
       toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
-  
+
   };
 
   return (
@@ -262,7 +262,7 @@ const CreateVotePoll = () => {
 
       <main className="main-content">
         <h1>Create Vote Poll</h1>
-        
+
         <form onSubmit={handleSubmit} className="vote-form">
           {/* Title */}
           <div className="form-group">
@@ -372,7 +372,7 @@ const CreateVotePoll = () => {
                     value={formData.startTime}
                     onChange={(e) => setFormData(prev => ({ ...prev, startTime: e.target.value }))}
                     className="time-input"
-                  />              
+                  />
                 </div>
                 <div className="time-picker">
                   <span>End time</span>
@@ -450,23 +450,49 @@ const CreateVotePoll = () => {
           </div>
 
           <div className="form-actions">
-            <button 
-              type="button" 
+            <button
+              type="button"
               className="btn btn-secondary"
               onClick={() => navigate(-1)}
             >
               ย้อนกลับ
             </button>
-            <button 
-              type="submit" 
+
+            {/* ✅ Preview */}
+            <button
+              type="button"
+              className="btn btn-preview"
+              onClick={() =>
+                navigate(
+                  editingId
+                    ? `/admin/preview/${editingId}`
+                    : `/admin/preview/temp`,
+                  {
+                    state: {
+                      draftPoll: formData,
+                      isDraft: true,
+                    },
+                  }
+                )
+              }
+            >
+              Preview
+            </button>
+
+            {/* Submit จริง */}
+            <button
+              type="submit"
               className={`create-btn ${editingId ? 'save-btn' : ''}`}
               disabled={isSubmitting}
             >
-              {isSubmitting 
-                ? 'กำลังบันทึก...' 
-                : editingId ? 'บันทึกการเปลี่ยนแปลง' : 'สร้างโพล'}
+              {isSubmitting
+                ? 'กำลังบันทึก...'
+                : editingId
+                  ? 'บันทึกการเปลี่ยนแปลง'
+                  : 'สร้างโพล'}
             </button>
           </div>
+
         </form>
       </main>
     </div>
