@@ -20,6 +20,20 @@ function buildPublicUrl(slug) {
   return `${base}/vote/${slug}`;
 }
 
+// แปลง relative URL เป็น absolute URL
+function ensureAbsoluteUrl(url, req) {
+  if (!url) return url;
+  // ถ้าเป็น URL แบบ absolute อยู่แล้ว (ขึ้นต้นด้วย http:// หรือ https://) ไม่ต้องทำอะไร
+  if (/^https?:\/\//.test(url)) return url;
+  // ถ้าเป็น relative URL (ขึ้นต้นด้วย /) ให้ต่อกับ base URL
+  if (url.startsWith('/')) {
+    const protocol = req ? req.protocol : 'http';
+    const host = req ? req.get('host') : 'localhost:3000';
+    return `${protocol}://${host}${url}`;
+  }
+  return url;
+}
+
 /**
  * สร้าง Room ใหม่:
  * - สร้าง show
@@ -206,7 +220,7 @@ async function getRoomsWithContestants() {
 }
 
 // ดึง room ตาม public_slug
-async function getRoomBySlug(slug) {
+async function getRoomBySlug(slug, req) {
   const client = await pool.connect();
   try {
     const result = await client.query(
@@ -264,7 +278,7 @@ async function getRoomBySlug(slug) {
         id: row.contestant_id,
         stage_name: row.stage_name,
         description: row.contestant_description || "",
-        image_url: row.image_url,
+        image_url: ensureAbsoluteUrl(row.image_url, req),
         order_number: row.order_number,
       });
     });

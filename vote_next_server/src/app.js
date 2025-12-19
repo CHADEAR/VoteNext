@@ -37,7 +37,10 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use("/api", routes);
 
 // Add this near your other middleware
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use(
+  "/uploads",
+  express.static(path.join(__dirname, "../uploads"))
+);
 
 // middleware จัดการ error
 

@@ -4,7 +4,7 @@ const roomService = require("../rooms/rooms.service");
 exports.getPublicVote = async (req, res) => {
   try {
     const { slug } = req.params;
-    const round = await roomService.getRoomBySlug(slug);
+    const round = await roomService.getRoomBySlug(slug, req);
     if (!round) {
       return res.status(404).json({
         success: false,

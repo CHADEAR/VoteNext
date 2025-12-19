@@ -1,4 +1,4 @@
-// src/pages/admin/AdminLoginPage.jsx
+// src/pages/admin/AdminLogin.jsx
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { adminLogin } from "../../services/auth.service";

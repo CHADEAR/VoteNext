@@ -46,7 +46,8 @@ exports.createRoom = async (req, res) => {
 
         if (req.files && req.files[`contestants[${index}][image]`]) {
           const file = req.files[`contestants[${index}][image]`][0];
-          contestantObj.image_url = `/uploads/${file.filename}`;
+          const baseUrl = `${req.protocol}://${req.get('host')}`;
+          contestantObj.image_url = `${baseUrl}/uploads/${file.filename}`;
         }
 
         contestants.push(contestantObj);
@@ -79,7 +80,8 @@ exports.createRoom = async (req, res) => {
         // Handle file upload if exists
         if (req.files && req.files[`contestants[${index}][image]`]) {
           const file = req.files[`contestants[${index}][image]`][0];
-          contestantObj.image_url = `/uploads/${file.filename}`;
+          const baseUrl = `${req.protocol}://${req.get('host')}`;
+          contestantObj.image_url = `${baseUrl}/uploads/${file.filename}`;
         }
 
         contestants.push(contestantObj);
@@ -168,7 +170,8 @@ exports.updateRoom = async (req, res) => {
 
         if (req.files && req.files[`contestants[${index}][image]`]) {
           const file = req.files[`contestants[${index}][image]`][0];
-          contestantObj.image_url = `/uploads/${file.filename}`;
+          const baseUrl = `${req.protocol}://${req.get('host')}`;
+          contestantObj.image_url = `${baseUrl}/uploads/${file.filename}`;
         }
 
         contestants.push(contestantObj);
@@ -205,7 +208,8 @@ exports.updateRoom = async (req, res) => {
 
         if (req.files && req.files[`contestants[${index}][image]`]) {
           const file = req.files[`contestants[${index}][image]`][0];
-          contestantObj.image_url = `/uploads/${file.filename}`;
+          const baseUrl = `${req.protocol}://${req.get('host')}`;
+          contestantObj.image_url = `${baseUrl}/uploads/${file.filename}`;
         }
 
         contestants.push(contestantObj);

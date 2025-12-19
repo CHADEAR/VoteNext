@@ -1,3 +1,4 @@
+// src/pages/voter/ContestantCard.jsx
 import React from "react";
 import "./VotePublicPage.css";
 
