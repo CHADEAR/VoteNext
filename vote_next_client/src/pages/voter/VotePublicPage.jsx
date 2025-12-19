@@ -1,16 +1,19 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { useParams } from "react-router-dom";
-import { fetchPublicVote } from "../../services/publicVote.service";
-import ContestantCard from "./ContestantCard";
-import ConfirmVoteModal from "./ConfirmVoteModal";
-import VoteSuccessModal from "./VoteSuccessModal";
+import { getPublicVote, submitVote } from "../../services/public-vote.service";
+import ContestantCard from "../../components/voter/ContestantCard";
+import ConfirmVoteModal from "../../components/voter/ConfirmVoteModal";
+import VoteSuccessModal from "../../components/voter/VoteSuccessModal";
 import "./VotePublicPage.css";
 
 export default function VotePublicPage() {
   const { public_slug } = useParams();
+
   const [poll, setPoll] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [voting, setVoting] = useState(false);
   const [error, setError] = useState("");
+
   const [selectedContestant, setSelectedContestant] = useState(null);
   const [showConfirm, setShowConfirm] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
@@ -19,7 +22,7 @@ export default function VotePublicPage() {
     const load = async () => {
       try {
         setLoading(true);
-        const data = await fetchPublicVote(public_slug);
+        const data = await getPublicVote(public_slug);
         setPoll(data);
       } catch (err) {
         console.error(err);
@@ -33,18 +36,24 @@ export default function VotePublicPage() {
 
   const contestants = useMemo(() => poll?.contestants || [], [poll]);
 
-  const handleVoteClick = (c) => {
-    setSelectedContestant(c);
+  const handleVoteClick = (contestant) => {
+    setSelectedContestant(contestant);
     setShowConfirm(true);
   };
 
-  const handleConfirmVote = () => {
-    setShowConfirm(false);
-    setShowSuccess(true);
-  };
-
-  const handleCloseSuccess = () => {
-    setShowSuccess(false);
+  const handleConfirmVote = async () => {
+    if (!selectedContestant) return;
+    try {
+      setVoting(true);
+      await submitVote(poll.id, selectedContestant.id);
+      setShowConfirm(false);
+      setShowSuccess(true);
+    } catch (err) {
+      console.error(err);
+      setError("โหวตไม่สำเร็จ กรุณาลองใหม่");
+    } finally {
+      setVoting(false);
+    }
   };
 
   return (
@@ -72,8 +81,10 @@ export default function VotePublicPage() {
                 key={c.id}
                 contestant={c}
                 onVote={handleVoteClick}
+                disabled={voting || showSuccess}
               />
             ))}
+
             {contestants.length === 0 && (
               <div className="vote-status">ยังไม่มีผู้เข้าแข่งขัน</div>
             )}
@@ -81,21 +92,18 @@ export default function VotePublicPage() {
         </>
       )}
 
-      {showConfirm && selectedContestant && (
-        <ConfirmVoteModal
-          contestant={selectedContestant}
-          onConfirm={handleConfirmVote}
-          onClose={() => setShowConfirm(false)}
-        />
-      )}
+      <ConfirmVoteModal
+        open={showConfirm}
+        contestant={selectedContestant}
+        onClose={() => setShowConfirm(false)}
+        onConfirm={handleConfirmVote}
+        loading={voting}
+      />
 
-      {showSuccess && selectedContestant && (
-        <VoteSuccessModal
-          contestant={selectedContestant}
-          onClose={handleCloseSuccess}
-        />
-      )}
+      <VoteSuccessModal
+        open={showSuccess}
+        onClose={() => setShowSuccess(false)}
+      />
     </div>
   );
 }
-

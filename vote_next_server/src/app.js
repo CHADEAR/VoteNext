@@ -36,6 +36,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // ใช้ router หลักที่ export มาจาก ./routes
 app.use("/api", routes);
 
+
 // Add this near your other middleware
 app.use(
   "/uploads",

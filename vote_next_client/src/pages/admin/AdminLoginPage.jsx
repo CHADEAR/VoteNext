@@ -1,9 +1,9 @@
-// src/pages/admin/AdminLogin.jsx
+// src/pages/admin/AdminLoginPage.jsx
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { adminLogin } from "../../services/auth.service";
 import logo from '../../assets/Black_White_Modern_Bold_Design_Studio_Logo-removebg-preview.png';
-import "./AdminLogin.css"; 
+import "./AdminLogin.css";
 
 export default function AdminLoginPage() {
   const navigate = useNavigate();
