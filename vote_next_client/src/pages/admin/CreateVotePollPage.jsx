@@ -5,6 +5,7 @@ import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { createVotePoll } from '../../services/api';
 import './CreateVotePoll.css';
+import logo from '../../assets/Black_White_Modern_Bold_Design_Studio_Logo-removebg-preview.png';
 
 const CreateVotePoll = () => {
   const location = useLocation();
@@ -250,8 +251,10 @@ const CreateVotePoll = () => {
 
   return (
     <div className="create-vote-poll">
-      <header className="header">
-        <div className="logo">VoteNext</div>
+      <header className="topbar">
+        <div className="logo">
+          <img src={logo} alt="logo" style={{ width: '70px', height: '40px' }} />
+        </div>
         <nav>
           <a href="/" className="nav-link">Home</a>
           <a href="/profile" className="nav-link">

@@ -4,11 +4,14 @@ import { useNavigate } from "react-router-dom";
 import { getRooms } from "../../services/rooms.service";
 import "./AdminDashboard.css";
 import { FiEye, FiShare2, FiEdit, FiTrash2 } from "react-icons/fi";
+import logo from '../../assets/Black_White_Modern_Bold_Design_Studio_Logo-removebg-preview.png';
+import { FaSearch } from "react-icons/fa";
 
 const MODE_LABEL = {
+  all: "All",
   online: "Online",
   remote: "Remote",
-  hybrid: "Online + Remote",
+  hybrid: "ทั้ง 2",
 };
 
 export default function AdminDashboardPage() {
@@ -20,6 +23,9 @@ export default function AdminDashboardPage() {
 
   const [modeFilter, setModeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+
+  const [openStatus, setOpenStatus] = useState(false);
+  const [openMode, setOpenMode] = useState(false);
 
   const [shareLink, setShareLink] = useState("");
 
@@ -65,7 +71,6 @@ export default function AdminDashboardPage() {
     });
   };
 
-
   const handleEdit = (room) => {
     if (room.status !== "pending") return;
     navigate("/admin/create-poll", { state: { room } });
@@ -85,9 +90,9 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="dashboard">
-      {/* Top bar */}
+      {/* Topbar */}
       <header className="topbar">
-        <div className="logo">VoteNext</div>
+        <img src={logo} alt="logo" className="logo-img" />
         <div className="profile">profile</div>
       </header>
 
@@ -97,30 +102,69 @@ export default function AdminDashboardPage() {
         {/* Controls */}
         <div className="controls">
           <div className="search-box">
-            🔍
+            <FaSearch color="#F2E16B" />
             <input placeholder="search box" />
           </div>
 
-          {/* Status filter */}
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-          >
-            <option value="all">all</option>
-            <option value="pending">pending</option>
-            <option value="ending">ending</option>
-          </select>
+          {/* Status dropdown */}
+          <div className="dropdown">
+            <button
+              className="dropdown-btn"
+              onClick={() => setOpenStatus(!openStatus)}
+            >
+              {statusFilter}
+              <span>⌄</span>
+            </button>
 
-          {/* Mode filter */}
-          <select
-            value={modeFilter}
-            onChange={(e) => setModeFilter(e.target.value)}
-          >
-            <option value="all">All</option>
-            <option value="online">Online</option>
-            <option value="remote">Remote</option>
-            <option value="hybrid">ทั้ง 2</option>
-          </select>
+            {openStatus && (
+              <div className="dropdown-menu">
+                {["all", "pending", "ending"].map((item) => (
+                  <div
+                    key={item}
+                    className={`dropdown-item ${
+                      statusFilter === item ? "active" : ""
+                    }`}
+                    onClick={() => {
+                      setStatusFilter(item);
+                      setOpenStatus(false);
+                    }}
+                  >
+                    {item}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Mode dropdown */}
+          <div className="dropdown">
+            <button
+              className="dropdown-btn"
+              onClick={() => setOpenMode(!openMode)}
+            >
+              {MODE_LABEL[modeFilter]}
+              <span>⌄</span>
+            </button>
+
+            {openMode && (
+              <div className="dropdown-menu">
+                {Object.keys(MODE_LABEL).map((key) => (
+                  <div
+                    key={key}
+                    className={`dropdown-item ${
+                      modeFilter === key ? "active" : ""
+                    }`}
+                    onClick={() => {
+                      setModeFilter(key);
+                      setOpenMode(false);
+                    }}
+                  >
+                    {MODE_LABEL[key]}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
           <button
             className="create-btn"
