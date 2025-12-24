@@ -1,12 +1,14 @@
 import React from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 
-import AdminLoginPage from "../pages/admin/AdminLogin";
-import AdminDashboardPage from "../pages/admin/AdminDashboard";
-import CreateVotePoll from "../pages/admin/CreateVotePoll";
+import AdminLoginPage from "../pages/admin/AdminLoginPage";
+import AdminDashboardPage from "../pages/admin/AdminDashboardPage";
+import CreateVotePollPage from "../pages/admin/CreateVotePollPage";
+import AdminPreviewVotePollPage from "../pages/admin/AdminPreviewVotePollPage";
+
 import VoteEnterEmailPage from "../pages/voter/VoteEnterEmailPage";
-import StageRealtimePage from "../pages/stage/StageRealtimePage";
 import VotePublicPage from "../pages/voter/VotePublicPage";
+import StageRealtimePage from "../pages/stage/StageRealtimePage";
 
 export default function AppRouter() {
   return (
@@ -15,7 +17,11 @@ export default function AppRouter() {
         {/* Admin */}
         <Route path="/admin/login" element={<AdminLoginPage />} />
         <Route path="/" element={<AdminDashboardPage />} />
-        <Route path="/admin/create-poll" element={<CreateVotePoll />} />
+        <Route path="/admin/create-poll" element={<CreateVotePollPage />} />
+        <Route
+          path="/admin/preview/:pollId"
+          element={<AdminPreviewVotePollPage />}
+        />
 
         {/* Voter */}
         <Route path="/vote" element={<VoteEnterEmailPage />} />
@@ -24,7 +30,7 @@ export default function AppRouter() {
         {/* Stage */}
         <Route path="/stage/realtime" element={<StageRealtimePage />} />
 
-        {/* Default / 404 */}
+        {/* 404 */}
         <Route path="*" element={<div>404 Not Found</div>} />
       </Routes>
     </BrowserRouter>

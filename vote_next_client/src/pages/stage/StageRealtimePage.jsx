@@ -1,3 +1,4 @@
+// src/pages/stage/StageRealtimePage.jsx
 import React from "react";
 
 export default function StageRealtimePage() {

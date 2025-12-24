@@ -1,3 +1,4 @@
+// src/api/rooms.api.js
 import apiClient from "./apiClient";
 
 export function getRooms() {
