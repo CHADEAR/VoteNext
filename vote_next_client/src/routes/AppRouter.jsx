@@ -24,8 +24,9 @@ export default function AppRouter() {
         />
 
         {/* Voter */}
-        <Route path="/vote" element={<VoteEnterEmailPage />} />
+        <Route path="/vote/:public_slug/email" element={<VoteEnterEmailPage />} />
         <Route path="/vote/:public_slug" element={<VotePublicPage />} />
+
 
         {/* Stage */}
         <Route path="/stage/realtime" element={<StageRealtimePage />} />

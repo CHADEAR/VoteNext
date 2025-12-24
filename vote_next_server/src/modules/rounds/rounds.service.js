@@ -227,6 +227,78 @@ async function createNextRound({
   }
 }
 
+async function computeRoundResults(roundId) {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    // 1) โหลด round + lock
+    const roundRes = await client.query(
+      `SELECT id, status, show_id
+       FROM rounds
+       WHERE id = $1
+       FOR UPDATE`,
+      [roundId]
+    );
+
+    if (roundRes.rowCount === 0) {
+      throw new Error("Round not found");
+    }
+
+    const round = roundRes.rows[0];
+
+    if (round.status !== "closed") {
+      throw new Error("Round must be closed before computing results");
+    }
+
+    // 2) กัน compute ซ้ำ
+    const exists = await client.query(
+      `SELECT 1 FROM round_results WHERE round_id = $1`,
+      [roundId]
+    );
+    if (exists.rowCount > 0) {
+      throw new Error("Round results already computed");
+    }
+
+    // 3) คำนวณผลจาก online_votes
+    const insertRes = await client.query(
+      `
+      INSERT INTO round_results (
+  round_id,
+  contestant_id,
+  online_raw,
+  final_score
+)
+SELECT
+  rc.round_id,
+  rc.contestant_id,
+  COUNT(ov.id) AS online_raw,
+  COUNT(ov.id) AS final_score
+FROM round_contestants rc
+JOIN contestants c ON c.id = rc.contestant_id
+LEFT JOIN online_votes ov
+  ON ov.contestant_id = rc.contestant_id
+ AND ov.round_id = rc.round_id
+WHERE rc.round_id = $1
+GROUP BY rc.round_id, rc.contestant_id
+
+      RETURNING *
+      `,
+      [roundId, round.show_id]
+    );
+
+    await client.query("COMMIT");
+
+    return insertRes.rows;
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+
 
 module.exports = {
   ensureRoundIsUpToDate,
@@ -234,4 +306,5 @@ module.exports = {
   getRound,
   startRound,
   createNextRound,
+  computeRoundResults,
 };

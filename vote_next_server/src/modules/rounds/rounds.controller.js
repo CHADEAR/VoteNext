@@ -55,3 +55,19 @@ exports.createNextRound = async (req, res) => {
     });
   }
 };
+
+exports.computeResults = async (req, res) => {
+  try {
+    const { roundId } = req.params;
+    const data = await roundsService.computeRoundResults(roundId);
+    return res.json({
+      success: true,
+      data,
+    });
+  } catch (err) {
+    return res.status(400).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};

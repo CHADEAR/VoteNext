@@ -35,18 +35,20 @@ async function submitOnlineVote({ roundId, contestantId, email }) {
     if (round.status !== "voting") {
       throw new Error("Voting is not open");
     }
-
-    // 2) ตรวจสอบ contestant อยู่ใน show เดียวกัน
+    
+    // 2) ตรวจสอบ contestant อยู่ใน round นี้จริง
     const contestantRes = await client.query(
-      `SELECT id
-       FROM contestants
-       WHERE id = $1 AND show_id = $2`,
-      [contestantId, round.show_id]
+      `SELECT 1
+   FROM round_contestants
+   WHERE round_id = $1
+     AND contestant_id = $2`,
+      [roundId, contestantId]
     );
 
     if (contestantRes.rowCount === 0) {
       throw new Error("Contestant is not in this round");
     }
+
 
     // 3) insert vote
     await client.query(
