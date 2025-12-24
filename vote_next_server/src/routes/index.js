@@ -5,6 +5,7 @@ const adminRoutes = require("../modules/admin/admin.routes");
 const showRoutes = require("../modules/shows/shows.routes");
 const roomRoutes = require("../modules/rooms/rooms.routes"); 
 const publicRoutes = require("../modules/public/public.routes");
+const roundsRoutes = require("../modules/rounds/rounds.routes");
 
 const router = express.Router();
 
@@ -13,5 +14,6 @@ router.use("/admin", adminRoutes);
 router.use("/shows", showRoutes);
 router.use("/rooms", roomRoutes); 
 router.use("/public", publicRoutes);
+router.use("/rounds", roundsRoutes);
 
 module.exports = router;

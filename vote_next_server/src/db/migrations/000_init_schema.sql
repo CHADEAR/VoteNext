@@ -42,7 +42,9 @@ CREATE INDEX IF NOT EXISTS idx_contestants_show_id
 ON contestants(show_id);
 
 -- =========================================
--- TABLE: rounds (รอบโหวต)
+-- TABLE: ...............
+
+unds (รอบโหวต)
 -- =========================================
 CREATE TABLE IF NOT EXISTS rounds (
     id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -53,7 +55,7 @@ CREATE TABLE IF NOT EXISTS rounds (
 
     start_time          TIMESTAMPTZ,
     end_time            TIMESTAMPTZ,
-
+แล้
     status              VARCHAR(50) NOT NULL DEFAULT 'pending'
     -- pending | voting | closed
 

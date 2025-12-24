@@ -1,3 +1,4 @@
+// src/pages/voter/VotePublicPage.jsx
 import React, { useEffect, useState, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { getPublicVote, submitVote } from "../../services/public-vote.service";

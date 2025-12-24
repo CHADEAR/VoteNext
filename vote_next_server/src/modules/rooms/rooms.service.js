@@ -1,5 +1,6 @@
 // vote_next_server/src/modules/rooms/rooms.service.js
 const { pool } = require("../../config/db");
+const { ensureRoundIsUpToDate } = require("../rounds/rounds.service");
 
 const FRONTEND_BASE_URL = process.env.FRONTEND_BASE_URL || null;
 
@@ -15,7 +16,6 @@ function generateRandomSlug(length = 8) {
 
 function buildPublicUrl(slug) {
   if (!FRONTEND_BASE_URL) return null;
-  // ตัด / ท้ายออกเพื่อกัน ///
   const base = FRONTEND_BASE_URL.replace(/\/+$/, "");
   return `${base}/vote/${slug}`;
 }
@@ -23,12 +23,10 @@ function buildPublicUrl(slug) {
 // แปลง relative URL เป็น absolute URL
 function ensureAbsoluteUrl(url, req) {
   if (!url) return url;
-  // ถ้าเป็น URL แบบ absolute อยู่แล้ว (ขึ้นต้นด้วย http:// หรือ https://) ไม่ต้องทำอะไร
   if (/^https?:\/\//.test(url)) return url;
-  // ถ้าเป็น relative URL (ขึ้นต้นด้วย /) ให้ต่อกับ base URL
-  if (url.startsWith('/')) {
-    const protocol = req ? req.protocol : 'http';
-    const host = req ? req.get('host') : 'localhost:3000';
+  if (url.startsWith("/")) {
+    const protocol = req ? req.protocol : "http";
+    const host = req ? req.get("host") : "localhost:3000";
     return `${protocol}://${host}${url}`;
   }
   return url;
@@ -62,7 +60,7 @@ async function createRoomWithContestants({
     );
     const show = showResult.rows[0];
 
-    // 2) สร้าง contestants ตามที่ส่งมา
+    // 2) สร้าง contestants
     const contestantRows = [];
     for (let index = 0; index < contestants.length; index++) {
       const c = contestants[index];
@@ -81,43 +79,37 @@ async function createRoomWithContestants({
     // 3) สร้าง slug ที่ไม่ซ้ำ
     let slug;
     let isUnique = false;
-
     while (!isUnique) {
       slug = generateRandomSlug(8);
       const check = await client.query(
         `SELECT 1 FROM rounds WHERE public_slug = $1`,
         [slug]
       );
-      if (check.rowCount === 0) {
-        isUnique = true;
-      }
+      if (check.rowCount === 0) isUnique = true;
     }
 
-    // 4) สร้าง round ผูกกับ show + vote_mode + slug + เวลาเริ่ม/จบโหวต
+    // 4) สร้าง round
     const roundResult = await client.query(
-      `INSERT INTO rounds (show_id, round_name, description, start_time, end_time, status, created_by, public_slug, vote_mode)
+      `INSERT INTO rounds
+       (show_id, round_name, description, start_time, end_time, status, created_by, public_slug, vote_mode)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING id, show_id, round_name, description, status, start_time, end_time, created_by, created_at, public_slug, vote_mode`,
       [
         show.id,
-        title, // ใช้ชื่อเดียวกับ room
+        title,
         description,
         startTime || null,
         endTime || null,
-        "pending", // เริ่มต้นยังไม่เปิดโหวต
-        null, // created_by: ภายหลังค่อยใช้ admin id
+        "pending",
+        null,
         slug,
         voteMode,
       ]
     );
 
     const round = roundResult.rows[0];
-
     await client.query("COMMIT");
 
-    const publicUrl = buildPublicUrl(round.public_slug);
-
-    // structure response ที่ controller จะส่งออก
     return {
       round_id: round.id,
       show_id: show.id,
@@ -128,7 +120,7 @@ async function createRoomWithContestants({
       end_time: round.end_time,
       vote_mode: round.vote_mode,
       public_slug: round.public_slug,
-      public_url: publicUrl,
+      public_url: buildPublicUrl(round.public_slug),
       show,
       contestants: contestantRows,
     };
@@ -140,19 +132,13 @@ async function createRoomWithContestants({
   }
 }
 
-module.exports = {
-  createRoomWithContestants,
-  getRoomsWithContestants,
-  updateRoomWithContestants,
-  getRoomBySlug,
-};
-
-// ดึงรายการ rooms (rounds) พร้อม contestants
+// ==============================
+// ดึงรายการ rooms (rounds)
+// ==============================
 async function getRoomsWithContestants() {
   const client = await pool.connect();
   try {
-    const result = await client.query(
-      `
+    const result = await client.query(`
       SELECT
         r.id AS round_id,
         r.round_name,
@@ -167,7 +153,6 @@ async function getRoomsWithContestants() {
         s.id AS show_id,
         s.title AS show_title,
         s.description AS show_description,
-        s.created_at AS show_created_at,
 
         c.id AS contestant_id,
         c.stage_name,
@@ -178,16 +163,14 @@ async function getRoomsWithContestants() {
       JOIN shows s ON r.show_id = s.id
       LEFT JOIN contestants c ON c.show_id = s.id
       ORDER BY r.created_at DESC, c.order_number ASC;
-      `
-    );
+    `);
 
     const map = new Map();
 
     for (const row of result.rows) {
-      const roundId = row.round_id;
-      if (!map.has(roundId)) {
-        map.set(roundId, {
-          round_id: roundId,
+      if (!map.has(row.round_id)) {
+        map.set(row.round_id, {
+          round_id: row.round_id,
           show_id: row.show_id,
           title: row.round_name || row.show_title,
           description: row.round_description || row.show_description || "",
@@ -203,7 +186,7 @@ async function getRoomsWithContestants() {
       }
 
       if (row.contestant_id) {
-        map.get(roundId).contestants.push({
+        map.get(row.round_id).contestants.push({
           id: row.contestant_id,
           stage_name: row.stage_name,
           image_url: row.image_url,
@@ -219,7 +202,10 @@ async function getRoomsWithContestants() {
   }
 }
 
+// ==============================
 // ดึง room ตาม public_slug
+// (STEP 2.1: auto-close by time)
+// ==============================
 async function getRoomBySlug(slug, req) {
   const client = await pool.connect();
   try {
@@ -234,12 +220,9 @@ async function getRoomBySlug(slug, req) {
         r.end_time,
         r.public_slug,
         r.vote_mode,
-        r.created_at AS round_created_at,
 
-        s.id AS show_id,
         s.title AS show_title,
         s.description AS show_description,
-        s.created_at AS show_created_at,
 
         c.id AS contestant_id,
         c.stage_name,
@@ -259,11 +242,19 @@ async function getRoomBySlug(slug, req) {
 
     const rows = result.rows;
     const first = rows[0];
+
+    // ✅ STEP 2.1: ensure round status is up to date
+    const updatedRound = await ensureRoundIsUpToDate({
+      id: first.round_id,
+      status: first.status,
+      end_time: first.end_time,
+    });
+
     const data = {
       round_id: first.round_id,
       title: first.round_name || first.show_title,
       description: first.round_description || first.show_description || "",
-      status: first.status,
+      status: updatedRound.status,
       start_time: first.start_time,
       end_time: first.end_time,
       vote_mode: first.vote_mode,
@@ -289,7 +280,9 @@ async function getRoomBySlug(slug, req) {
   }
 }
 
-// อัปเดต room + contestants (แทนที่ contestants ทั้งชุด)
+// ==============================
+// update room + contestants
+// ==============================
 async function updateRoomWithContestants({
   roundId,
   title,
@@ -303,25 +296,21 @@ async function updateRoomWithContestants({
   try {
     await client.query("BEGIN");
 
-    // หา round + show
     const roundResult = await client.query(
-      `SELECT r.id, r.show_id
-       FROM rounds r
-       WHERE r.id = $1`,
+      `SELECT r.id, r.show_id FROM rounds r WHERE r.id = $1`,
       [roundId]
     );
     if (roundResult.rowCount === 0) {
       throw new Error("ไม่พบรอบโหวตนี้");
     }
-    const roundRow = roundResult.rows[0];
 
-    // อัปเดต show
+    const { show_id } = roundResult.rows[0];
+
     await client.query(
       `UPDATE shows SET title = $1, description = $2 WHERE id = $3`,
-      [title, description, roundRow.show_id]
+      [title, description, show_id]
     );
 
-    // อัปเดต round
     await client.query(
       `UPDATE rounds
        SET round_name = $1,
@@ -333,49 +322,18 @@ async function updateRoomWithContestants({
       [title, description, voteMode, startTime || null, endTime || null, roundId]
     );
 
-    // ลบ contestants เดิม
-    await client.query(
-      `DELETE FROM contestants WHERE show_id = $1`,
-      [roundRow.show_id]
-    );
+    await client.query(`DELETE FROM contestants WHERE show_id = $1`, [show_id]);
 
-    // แทรก contestants ใหม่
-    const contestantRows = [];
-    for (let index = 0; index < contestants.length; index++) {
-      const c = contestants[index];
-      const orderNumber = index + 1;
-      const result = await client.query(
+    for (let i = 0; i < contestants.length; i++) {
+      const c = contestants[i];
+      await client.query(
         `INSERT INTO contestants (show_id, stage_name, image_url, order_number, description)
-         VALUES ($1, $2, $3, $4, $5)
-         RETURNING id, show_id, stage_name, image_url, order_number, created_at`,
-        [roundRow.show_id, c.stage_name, c.image_url || null, orderNumber, c.description || ""]
+         VALUES ($1, $2, $3, $4, $5)`,
+        [show_id, c.stage_name, c.image_url || null, i + 1, c.description || ""]
       );
-      contestantRows.push(result.rows[0]);
     }
 
     await client.query("COMMIT");
-
-    // ดึง round ล่าสุด (รวม slug) เพื่อคืน response ครบ
-    const refreshed = await client.query(
-      `SELECT id, show_id, round_name, description, status, start_time, end_time, public_slug, vote_mode
-       FROM rounds WHERE id = $1`,
-      [roundId]
-    );
-    const round = refreshed.rows[0];
-
-    return {
-      round_id: round.id,
-      show_id: round.show_id,
-      title: round.round_name,
-      description: round.description,
-      status: round.status,
-      start_time: round.start_time,
-      end_time: round.end_time,
-      vote_mode: round.vote_mode,
-      public_slug: round.public_slug,
-      public_url: buildPublicUrl(round.public_slug),
-      contestants: contestantRows,
-    };
   } catch (err) {
     await client.query("ROLLBACK");
     throw err;
@@ -383,3 +341,10 @@ async function updateRoomWithContestants({
     client.release();
   }
 }
+
+module.exports = {
+  createRoomWithContestants,
+  getRoomsWithContestants,
+  getRoomBySlug,
+  updateRoomWithContestants,
+};
