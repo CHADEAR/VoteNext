@@ -1,11 +1,10 @@
-import { createRoom, updateRoom } from "../api/rooms.api";
+import { createRoom } from '../api/rooms.api';
+import apiClient from '../api/apiClient';
 
-// Business logic: prepare formData for creating vote poll
 export const createVotePoll = async (pollData) => {
-  // Create FormData to handle file uploads
   const formData = new FormData();
 
-  // Basic poll data
+  // show data
   formData.append("title", pollData.title);
   formData.append("description", pollData.description || "");
   formData.append(
@@ -13,49 +12,29 @@ export const createVotePoll = async (pollData) => {
     pollData.modeType === "online+remote" ? "hybrid" : pollData.modeType
   );
 
-  // Choices
+  // contestants
   pollData.choices
-    .filter((choice) => choice.label.trim() !== "")
-    .forEach((choice, index) => {
-      formData.append(`contestants[${index}][stage_name]`, choice.label);
-      formData.append(
-        `contestants[${index}][description]`,
-        choice.description || ""
-      );
-      if (choice.imageUrl && !choice.image) {
-        formData.append(`contestants[${index}][image_url]`, choice.imageUrl);
+    .filter(c => c.label.trim() !== "")
+    .forEach((c, i) => {
+      formData.append(`contestants[${i}][stage_name]`, c.label);
+      formData.append(`contestants[${i}][description]`, c.description || "");
+      if (c.image) {
+        formData.append(`contestants[${i}][image]`, c.image);
+      } else if (c.imageUrl) {
+        formData.append(`contestants[${i}][image_url]`, c.imageUrl);
       }
-      if (choice.image) {
-        formData.append(`contestants[${index}][image]`, choice.image);
-      }
-      formData.append(`contestants[${index}][order_number]`, index + 1);
     });
 
-  // Auto counter times
-  if (pollData.counterType === "auto") {
-    if (pollData.startDate && pollData.startTime) {
-      const startDateTime = new Date(
-        `${pollData.startDate}T${pollData.startTime}`
-      );
-      formData.append("start_time", startDateTime.toISOString());
-    }
+  // ✅ call backend แค่ครั้งเดียวพอ
+  const createResponse = await createRoom(formData);
 
-    // Default endDate to startDate if not provided
-    const endDate = pollData.endDate || pollData.startDate;
-    if (endDate && pollData.endTime) {
-      const endDateTime = new Date(`${endDate}T${pollData.endTime}`);
-      formData.append("end_time", endDateTime.toISOString());
-    }
+ const showId = createResponse.data?.data?.show?.id;
+ const roundId = createResponse.data?.data?.round?.id;
+
+  if (!showId || !roundId) {
+    throw new Error("Create poll failed");
   }
 
-  const isEdit = !!pollData.round_id;
-  const response = isEdit
-    ? await updateRoom(pollData.round_id, formData)
-    : await createRoom(formData);
-  return response.data;
+  // 🔥 ไม่ต้องสร้าง round ซ้ำแล้ว
+  return createResponse.data;
 };
-
-export default {
-  createVotePoll,
-};
-

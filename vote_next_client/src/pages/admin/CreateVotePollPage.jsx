@@ -4,6 +4,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { createVotePoll } from '../../services/api';
+import { createRoom, updateRoom } from "../../api/rooms.api";
 import './CreateVotePoll.css';
 import logo from '../../assets/Black_White_Modern_Bold_Design_Studio_Logo-removebg-preview.png';
 
@@ -180,14 +181,11 @@ const CreateVotePoll = () => {
 
       let response;
 
-      if (editingId) {
-        // Update existing poll with PATCH
-        response = await createVotePoll({
-          ...submitData,
-          round_id: editingId,
-          _method: 'PATCH' // Use PATCH for partial updates
-        });
-        toast.success('อัปเดตโพลสำเร็จ!');
+      if (editingId) { 
+        // Update existing poll
+        const formData = buildFormData(submitData);
+        response = await updateRoom(editingId, formData);
+        toast.success("อัปเดตโพลสำเร็จ!");
       } else {
         // Create new poll
         response = await createVotePoll(submitData);

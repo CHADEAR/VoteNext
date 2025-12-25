@@ -39,6 +39,26 @@ exports.stop = async (req, res) => {
 
 const roundsService = require('./rounds.service');
 
+exports.createFirstRound = async (req, res) => {
+  try {
+    const { showId } = req.params;
+    const { roundName, startTime, endTime } = req.body;
+
+    const result = await roundsService.createFirstRound({
+      showId,
+      roundName,
+      startTime,
+      endTime,
+      createdBy: req.admin?.id || null
+    });
+
+    res.json({ success: true, data: result });
+  } catch (e) {
+    res.status(400).json({ success: false, message: e.message });
+  }
+};
+
+
 exports.createNextRound = async (req, res) => {
   try {
     const { roundId } = req.params;
