@@ -1,18 +1,32 @@
 // src/pages/admin/AdminDashboard.jsx
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { getRooms } from "../../services/rooms.service";
 import "./AdminDashboard.css";
 import { FiEye, FiShare2, FiEdit, FiTrash2 } from "react-icons/fi";
+import logo from '../../assets/Black_White_Modern_Bold_Design_Studio_Logo-removebg-preview.png';
+import { FaSearch } from "react-icons/fa";
+import { CgProfile } from "react-icons/cg";
+import { IoCamera } from "react-icons/io5";
+
 
 const MODE_LABEL = {
+  all: "All",
   online: "Online",
   remote: "Remote",
-  hybrid: "Online + Remote",
+  hybrid: "ทั้ง 2",
 };
 
 export default function AdminDashboardPage() {
   const navigate = useNavigate();
+
+  const [openProfile, setOpenProfile] = useState(false);
+
+  const profileRef = useRef(null);
+
+  const fileInputRef = useRef(null);
+
+  const [profileImage, setProfileImage] = useState(null);
 
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -20,6 +34,9 @@ export default function AdminDashboardPage() {
 
   const [modeFilter, setModeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+
+  const [openStatus, setOpenStatus] = useState(false);
+  const [openMode, setOpenMode] = useState(false);
 
   const [shareLink, setShareLink] = useState("");
 
@@ -37,6 +54,17 @@ export default function AdminDashboardPage() {
       }
     };
     fetchRooms();
+  }, []);
+
+  // ปิดเมื่อคลิกนอกกล่อง
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (profileRef.current && !profileRef.current.contains(e.target)) {
+        setOpenProfile(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const filteredRooms = useMemo(() => {
@@ -65,7 +93,6 @@ export default function AdminDashboardPage() {
     });
   };
 
-
   const handleEdit = (room) => {
     if (room.status !== "pending") return;
     navigate("/admin/create-poll", { state: { room } });
@@ -79,16 +106,74 @@ export default function AdminDashboardPage() {
     );
   };
 
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          const size = Math.min(img.width, img.height);
+          canvas.width = size;
+          canvas.height = size;
+          const x = (img.width - size) / 2;
+          const y = (img.height - size) / 2;
+          ctx.drawImage(img, x, y, size, size, 0, 0, size, size);
+          const resizedDataUrl = canvas.toDataURL('image/jpeg');
+          setProfileImage(resizedDataUrl);
+        };
+        img.src = event.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   if (loading) {
     return <div className="admin-dashboard__empty">กำลังโหลด...</div>;
   }
 
   return (
     <div className="dashboard">
-      {/* Top bar */}
+      {/* Topbar */}
       <header className="topbar">
-        <div className="logo">VoteNext</div>
-        <div className="profile">profile</div>
+        <img src={logo} alt="logo" className="logo-img" />
+
+        {/* Profile */}
+        <div className="profile-wrapper" ref={profileRef}>
+          <button
+            className="profile-btn"
+            onClick={() => setOpenProfile(!openProfile)}
+          >
+            {profileImage ? <img src={profileImage} alt="profile" className="profile-img" /> : <CgProfile size={40} className="person-icon-small" />}
+          </button>
+
+          {openProfile && (
+            <div className="profile-dropdown">
+              <div className="profile-avatar">
+                {!profileImage && <CgProfile size={90} className="person-icon" />}
+                {profileImage && <img src={profileImage} alt="avatar" className="avatar-img" />}
+                <span className="camera" onClick={() => fileInputRef.current.click()}><IoCamera /></span>
+              </div>
+
+              <div className="profile-email">
+                admin1@gmail.com
+              </div>
+
+              <button
+                className="logout-btn"
+                onClick={() => {
+                  localStorage.removeItem("votenext_admin");
+                  navigate("/admin/login");
+                }}
+              >
+                LOGOUT
+              </button>
+            </div>
+          )}
+        </div>
+        <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{display: 'none'}} accept="image/*" />
       </header>
 
       <main className="dashboard-content">
@@ -97,30 +182,69 @@ export default function AdminDashboardPage() {
         {/* Controls */}
         <div className="controls">
           <div className="search-box">
-            🔍
+            <FaSearch color="#F2E16B" />
             <input placeholder="search box" />
           </div>
 
-          {/* Status filter */}
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-          >
-            <option value="all">all</option>
-            <option value="pending">pending</option>
-            <option value="ending">ending</option>
-          </select>
+          {/* Status dropdown */}
+          <div className="dropdown">
+            <button
+              className="dropdown-btn"
+              onClick={() => setOpenStatus(!openStatus)}
+            >
+              {statusFilter}
+              <span>⌄</span>
+            </button>
 
-          {/* Mode filter */}
-          <select
-            value={modeFilter}
-            onChange={(e) => setModeFilter(e.target.value)}
-          >
-            <option value="all">All</option>
-            <option value="online">Online</option>
-            <option value="remote">Remote</option>
-            <option value="hybrid">ทั้ง 2</option>
-          </select>
+            {openStatus && (
+              <div className="dropdown-menu">
+                {["all", "pending", "ending"].map((item) => (
+                  <div
+                    key={item}
+                    className={`dropdown-item ${
+                      statusFilter === item ? "active" : ""
+                    }`}
+                    onClick={() => {
+                      setStatusFilter(item);
+                      setOpenStatus(false);
+                    }}
+                  >
+                    {item}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Mode dropdown */}
+          <div className="dropdown">
+            <button
+              className="dropdown-btn"
+              onClick={() => setOpenMode(!openMode)}
+            >
+              {MODE_LABEL[modeFilter]}
+              <span>⌄</span>
+            </button>
+
+            {openMode && (
+              <div className="dropdown-menu">
+                {Object.keys(MODE_LABEL).map((key) => (
+                  <div
+                    key={key}
+                    className={`dropdown-item ${
+                      modeFilter === key ? "active" : ""
+                    }`}
+                    onClick={() => {
+                      setModeFilter(key);
+                      setOpenMode(false);
+                    }}
+                  >
+                    {MODE_LABEL[key]}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
           <button
             className="create-btn"

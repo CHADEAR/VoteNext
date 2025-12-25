@@ -18,12 +18,25 @@ export default function VotePublicPage() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
+  const EMAIL_KEY = "vote_next_email";
+  const email = localStorage.getItem(EMAIL_KEY);
+
   useEffect(() => {
+    // ต้องมี email ก่อน
+    if (!email) {
+      window.location.href = `/vote/${public_slug}/email`;
+      return;
+    }
+
     const load = async () => {
       try {
         setLoading(true);
         const data = await getPublicVote(public_slug);
-        setPoll(data);
+        console.log("poll from api =", data);
+        setPoll({
+          ...data,
+          id: data.round_id,
+        });
       } catch (err) {
         console.error(err);
         setError("ไม่สามารถโหลดข้อมูลโพลได้");
@@ -31,23 +44,45 @@ export default function VotePublicPage() {
         setLoading(false);
       }
     };
-    load();
-  }, [public_slug]);
 
-  const contestants = useMemo(() => poll?.contestants || [], [poll]);
+    load();
+  }, [public_slug, email]);
+
+  const contestants = useMemo(
+    () => poll?.contestants || [],
+    [poll]
+  );
+
+  const isVotingOpen = poll?.status === "voting";
 
   const handleVoteClick = (contestant) => {
+    if (!isVotingOpen || voting || showSuccess) return;
+    if (!poll?.id) {
+      setError("ไม่พบข้อมูลโพล");
+      return;
+    }
+
     setSelectedContestant(contestant);
     setShowConfirm(true);
   };
 
   const handleConfirmVote = async () => {
     if (!selectedContestant) return;
+    if (!poll?.id) {
+      setError("ไม่พบข้อมูลโพล");
+      return;
+    }
+    if (!isVotingOpen) {
+      setError("รอบนี้ยังไม่เปิดให้โหวต");
+      return;
+    }
+
     try {
       setVoting(true);
-      await submitVote(poll.id, selectedContestant.id);
+      await submitVote(poll.id, selectedContestant.id, email);
       setShowConfirm(false);
       setShowSuccess(true);
+      setError("");
     } catch (err) {
       console.error(err);
       setError("โหวตไม่สำเร็จ กรุณาลองใหม่");
@@ -75,13 +110,20 @@ export default function VotePublicPage() {
             {poll.description && <p>{poll.description}</p>}
           </section>
 
+          {!isVotingOpen && (
+            <div className="vote-status warning">
+              {poll.status === "pending" && "ยังไม่เปิดให้โหวต"}
+              {poll.status === "closed" && "ปิดการโหวตแล้ว"}
+            </div>
+          )}
+
           <section className="contestant-grid">
             {contestants.map((c) => (
               <ContestantCard
                 key={c.id}
                 contestant={c}
                 onVote={handleVoteClick}
-                disabled={voting || showSuccess}
+                disabled={!isVotingOpen || voting || showSuccess}
               />
             ))}
 
@@ -102,7 +144,10 @@ export default function VotePublicPage() {
 
       <VoteSuccessModal
         open={showSuccess}
-        onClose={() => setShowSuccess(false)}
+        onClose={() => {
+          localStorage.removeItem(EMAIL_KEY);
+          setShowSuccess(false);
+        }}
       />
     </div>
   );

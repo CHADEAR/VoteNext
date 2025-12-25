@@ -39,7 +39,7 @@
 .admin-login-title {
   font-size: 28px;
   font-weight: 700;
-  color: #4a3fb3; /* โทนม่วง */
+  color: #225C8B; /* โทนม่วง */
 }
 
 /* Form */
@@ -94,7 +94,7 @@
 .form-error {
   margin: 8px 0;
   font-size: 13px;
-  color: #b3261e;
+  color: #B32B2B;
 }
 
 .form-info {
@@ -110,7 +110,7 @@
   border: none;
   border-radius: 5px;
   padding: 10px 16px;
-  background: #4a3fb3;
+  background: #2B51B3;
   color: #fff;
   font-size: 15px;
   font-weight: 600;

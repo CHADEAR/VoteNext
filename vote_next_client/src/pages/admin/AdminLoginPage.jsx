@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { adminLogin } from "../../services/auth.service";
 import logo from '../../assets/Black_White_Modern_Bold_Design_Studio_Logo-removebg-preview.png';
 import "./AdminLogin.css";
+import { MdEmail, MdLock } from "react-icons/md";
 
 export default function AdminLoginPage() {
   const navigate = useNavigate();
@@ -37,7 +38,7 @@ export default function AdminLoginPage() {
     } catch (err) {
       console.error(err);
       const msg =
-        err?.response?.data?.message || "Login ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง";
+        err?.response?.data?.message || "Login ไม่สำเร็จ กรุณาลองอีกครั้ง";
       setError(msg);
     } finally {
       setLoading(false);
@@ -59,7 +60,7 @@ export default function AdminLoginPage() {
           <div className="form-group">
             <label className="input-label">Email</label>
             <div className="input-wrapper">
-              <span className="input-icon">✉️</span>
+              <span className="input-icon"><MdEmail size={18} /></span>
               <input
                 type="email"
                 placeholder="Email"
@@ -73,7 +74,7 @@ export default function AdminLoginPage() {
           <div className="form-group">
             <label className="input-label">Password</label>
             <div className="input-wrapper">
-              <span className="input-icon">🔒</span>
+              <span className="input-icon"><MdLock size={18} /></span>
               <input
                 type="password"
                 placeholder="Password"
@@ -82,7 +83,7 @@ export default function AdminLoginPage() {
                 className="input-field"
               />
             </div>
-            <div className="forgot-password">Forgot Password?</div>
+            {/* <div className="forgot-password">Forgot Password?</div> */}
           </div>
 
           {error && <div className="form-error">{error}</div>}
@@ -97,10 +98,10 @@ export default function AdminLoginPage() {
           </button>
         </form>
 
-        <div className="signup-row">
+        {/*<div className="signup-row">
           Don&apos;t have an account?{" "}
           <span className="signup-link">Sign up</span>
-        </div>
+        </div>*/}
       </div>
     </div>
   );
