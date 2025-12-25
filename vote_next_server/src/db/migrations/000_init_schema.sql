@@ -42,9 +42,7 @@ CREATE INDEX IF NOT EXISTS idx_contestants_show_id
 ON contestants(show_id);
 
 -- =========================================
--- TABLE: ...............
-
-unds (รอบโหวต)
+-- TABLE: rounds (รอบโหวต)
 -- =========================================
 CREATE TABLE IF NOT EXISTS rounds (
     id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -55,11 +53,11 @@ CREATE TABLE IF NOT EXISTS rounds (
 
     start_time          TIMESTAMPTZ,
     end_time            TIMESTAMPTZ,
-แล้
-    status              VARCHAR(50) NOT NULL DEFAULT 'pending'
+
+    status              VARCHAR(50) NOT NULL DEFAULT 'pending',
     -- pending | voting | closed
 
-    ,created_by         UUID REFERENCES admins(id),
+    created_by         UUID REFERENCES admins(id),
     created_at          TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -79,7 +77,7 @@ CREATE TABLE IF NOT EXISTS online_votes (
 
     created_at      TIMESTAMPTZ DEFAULT NOW(),
 
-    UNIQUE (round_id, voter_email)   -- 1 email ต่อรอบ
+    UNIQUE (round_id, voter_email)
 );
 
 CREATE INDEX IF NOT EXISTS idx_online_votes_round
@@ -90,20 +88,16 @@ ON online_votes(contestant_id);
 
 -- =========================================
 -- TABLE: remote_devices (device ลงทะเบียนในสตู)
--- 1 device = 1 remote control
 -- =========================================
 CREATE TABLE IF NOT EXISTS remote_devices (
     id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    device_id       VARCHAR(255) UNIQUE NOT NULL, -- เช่น MAC address
-
-    owner_label     VARCHAR(255),                 -- เช่น Seat A1, Staff #3
-
+    device_id       VARCHAR(255) UNIQUE NOT NULL,
+    owner_label     VARCHAR(255),
     created_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- =========================================
 -- TABLE: remote_votes (โหวตผ่าน remote)
--- 1 device = 1 vote / round
 -- =========================================
 CREATE TABLE IF NOT EXISTS remote_votes (
     id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -122,8 +116,6 @@ ON remote_votes(round_id);
 
 -- =========================================
 -- TABLE: judge_scores (คะแนนกรรมการ)
--- Admin จะกรอกคะแนนรวมทีเดียวหลังจบโหวต
--- อนาคตเพิ่มกรรมการหลายคนก็ได้
 -- =========================================
 CREATE TABLE IF NOT EXISTS judge_scores (
     id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -142,9 +134,6 @@ ON judge_scores(round_id);
 
 -- =========================================
 -- TABLE: round_results (ผลรวมคะแนนแต่ละรอบ)
--- คิดคะแนนที่ backend แล้วเก็บลงฐานข้อมูล
--- remote_pct / online_pct / judge_pct เป็นเปอร์เซ็นต์
--- final_score = คำนวณจริง เช่น (40/30/30)
 -- =========================================
 CREATE TABLE IF NOT EXISTS round_results (
     id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
