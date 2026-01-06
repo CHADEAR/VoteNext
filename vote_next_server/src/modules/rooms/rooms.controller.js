@@ -102,6 +102,7 @@ exports.createRoom = async (req, res) => {
       data: {
         show: newRoom.show,
         round: round.round,
+        contestants: newRoom.contestants,
       },
     });
 

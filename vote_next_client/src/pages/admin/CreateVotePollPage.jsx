@@ -193,17 +193,18 @@ const CreateVotePoll = () => {
         toast.success("อัปเดตโพลสำเร็จ!");
       } else {
         // Create new poll
-        response = await createVotePoll(submitData);
-        toast.success('สร้างโพลสำเร็จ!');
-
-        // Copy public URL to clipboard if available (only for new polls)
-        if (response.public_url) {
-          try {
-            await navigator.clipboard.writeText(response.public_url);
-            toast.info('คัดลอกลิงก์โหวตไปยังคลิปบอร์ดแล้ว');
-          } catch (err) {
-            console.error('Failed to copy URL: ', err);
-          }
+        const result = await createVotePoll(submitData);
+        
+        if (result && result.data) {
+          toast.success('สร้างโพลสำเร็จ!');
+          
+          // Navigate to preview page with the API response data
+          navigate(`/admin/preview/${result.data.id}`, {
+            state: { room: result }
+          });
+          return; // Exit early after navigation
+        } else {
+          throw new Error('Invalid response format from server');
         }
       }
 
