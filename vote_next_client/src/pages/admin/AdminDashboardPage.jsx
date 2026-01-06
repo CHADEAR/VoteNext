@@ -64,8 +64,31 @@ export default function AdminDashboardPage() {
   };
 
   const handleView = (room) => {
+    // Format the room data to match the expected structure in Preview page
+    const previewData = {
+      success: true,
+      data: {
+        show: {
+          id: room.id,
+          title: room.title,
+          description: room.description,
+          created_at: room.created_at
+        },
+        round: {
+          id: room.round_id,
+          start_time: room.start_time,
+          end_time: room.end_time,
+          public_slug: room.public_slug,
+          vote_mode: room.vote_mode,
+          status: room.status
+        },
+        // Include contestants if available
+        contestants: room.contestants || []
+      }
+    };
+
     navigate(`/admin/preview/${room.round_id}`, {
-      state: { room }
+      state: { room: previewData }
     });
   };
 
