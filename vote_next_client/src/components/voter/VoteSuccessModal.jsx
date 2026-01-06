@@ -1,6 +1,6 @@
 import React from "react";
 
-export default function VoteSuccessModal({ open, onClose }) {
+export default function VoteSuccessModal({ open, onClose, onViewResult }) {
   if (!open) return null;
 
   return (
@@ -10,8 +10,12 @@ export default function VoteSuccessModal({ open, onClose }) {
         <div className="modal__desc">+ 1 โหวต</div>
 
         <div className="modal__actions">
-          <button className="btn-primary" onClick={onClose}>
+          <button className="btn-primary" onClick={onViewResult}>
             ดูผลโหวตทั้งหมด
+          </button>
+
+          <button className="btn-secondary" onClick={onClose}>
+            ปิด
           </button>
         </div>
       </div>

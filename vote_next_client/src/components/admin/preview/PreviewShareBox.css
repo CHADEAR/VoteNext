@@ -1,0 +1,37 @@
+.preview-share-box {
+  padding: 16px;
+  background: #f9fafb;
+  border-radius: 12px;
+  text-align: center;
+}
+
+.qr-wrapper {
+  margin: 12px 0;
+  padding: 12px;
+  background: #fff;
+  display: inline-block;
+  border-radius: 8px;
+}
+
+.share-link {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.share-link input {
+  flex: 1;
+  padding: 6px 8px;
+  font-size: 13px;
+}
+
+.share-link button {
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.hint {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #666;
+}

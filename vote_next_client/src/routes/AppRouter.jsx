@@ -8,13 +8,15 @@ import AdminPreviewVotePollPage from "../pages/admin/AdminPreviewVotePollPage";
 
 import VoteEnterEmailPage from "../pages/voter/VoteEnterEmailPage";
 import VotePublicPage from "../pages/voter/VotePublicPage";
+import VoteRankPage from "../pages/voter/VoteRankPage";
+
 import StageRealtimePage from "../pages/stage/StageRealtimePage";
 
 export default function AppRouter() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Admin */}
+        {/* ================= Admin ================= */}
         <Route path="/admin/login" element={<AdminLoginPage />} />
         <Route path="/" element={<AdminDashboardPage />} />
         <Route path="/admin/create-poll" element={<CreateVotePollPage />} />
@@ -23,15 +25,24 @@ export default function AppRouter() {
           element={<AdminPreviewVotePollPage />}
         />
 
-        {/* Voter */}
-        <Route path="/vote/:public_slug/email" element={<VoteEnterEmailPage />} />
-        <Route path="/vote/:public_slug" element={<VotePublicPage />} />
+        {/* ================= Voter ================= */}
+        <Route
+          path="/vote/:publicSlug/email"
+          element={<VoteEnterEmailPage />}
+        />
+        <Route
+          path="/vote/:publicSlug"
+          element={<VotePublicPage />}
+        />
+        <Route
+          path="/vote/:publicSlug/rank"
+          element={<VoteRankPage />}
+        />
 
-
-        {/* Stage */}
+        {/* ================= Stage ================= */}
         <Route path="/stage/realtime" element={<StageRealtimePage />} />
 
-        {/* 404 */}
+        {/* ================= 404 ================= */}
         <Route path="*" element={<div>404 Not Found</div>} />
       </Routes>
     </BrowserRouter>

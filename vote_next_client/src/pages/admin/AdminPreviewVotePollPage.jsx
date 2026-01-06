@@ -7,40 +7,15 @@ import PreviewTimeSetting from "../../components/admin/preview/PreviewTimeSettin
 import PreviewShareBox from "../../components/admin/preview/PreviewShareBox";
 import Navbar from "../../components/layout/Navbar";
 import "./AdminPreviewVotePollPage.css";
-
-/**
- * Expected data shape (confirmed by runtime logs):
- *
- * room = {
- *   success: true,
- *   data: {
- *     show: {
- *       id,
- *       title,
- *       description,
- *       created_at
- *     },
- *     round: {
- *       id,
- *       start_time,
- *       end_time,
- *       public_slug,
- *       vote_mode,
- *       status
- *     },
- *     contestants?: [
- *       { id, stage_name, description, image_url, order_number }
- *     ]
- *   }
- * }
- */
+import { startRound } from "../../api/rounds.api";
+import { toast } from "react-toastify";
 
 export default function AdminPreviewVotePollPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const room = location.state?.room;
 
-  // Safety guard: if data shape is invalid, go back to dashboard
+  // Safety guard
   if (!room || !room.data || !room.data.show || !room.data.round) {
     return <Navigate to="/admin/dashboard" replace />;
   }
@@ -52,18 +27,16 @@ export default function AdminPreviewVotePollPage() {
     navigate("/admin/login");
   };
 
-  // Determine counter type
+  // counter type
   const counterType =
     round.start_time && round.end_time ? "auto" : "manual";
 
-  // Helper: safely format date (YYYY-MM-DD)
   const toDate = (iso) => {
     if (!iso) return "";
     const d = new Date(iso);
     return isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 10);
   };
 
-  // Helper: safely format time (HH:mm)
   const toTime = (iso) => {
     if (!iso) return "";
     const d = new Date(iso);
@@ -76,6 +49,20 @@ export default function AdminPreviewVotePollPage() {
     description: c.description || "",
     image_url: c.image_url || "",
   }));
+
+  // ✅ START VOTE HANDLER
+  const handleStartVote = async () => {
+    try {
+      await startRound(round.id);
+      toast.success("เริ่มโหวตเรียบร้อยแล้ว");
+      window.location.reload(); // ให้ status อัปเดต
+    } catch (error) {
+      console.error("Failed to start vote:", error);
+      toast.error(
+        error.response?.data?.message || "ไม่สามารถเริ่มโหวตได้"
+      );
+    }
+  };
 
   return (
     <div className="preview-container">
@@ -112,9 +99,12 @@ export default function AdminPreviewVotePollPage() {
 
         <button
           className="btn-primary"
-          onClick={() => alert("Start Vote (ขั้นตอนถัดไป)")}
+          onClick={handleStartVote}
+          disabled={round.status === "started"}
         >
-          Continue Start Vote
+          {round.status === "started"
+            ? "โหวตได้แล้ว"
+            : "เริ่มโหวต"}
         </button>
       </div>
     </div>

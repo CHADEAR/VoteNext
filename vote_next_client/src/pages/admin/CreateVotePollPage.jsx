@@ -7,6 +7,8 @@ import { createVotePoll } from '../../services/api';
 import { createRoom, updateRoom } from "../../api/rooms.api";
 import Navbar from '../../components/layout/Navbar';
 import './CreateVotePoll.css';
+import { uploadImageToCloudinary } from "../../services/cloudinaryUpload.service";
+
 
 const CreateVotePoll = () => {
   const location = useLocation();
@@ -178,75 +180,61 @@ const CreateVotePoll = () => {
     try {
       setIsSubmitting(true);
 
-      // Prepare form data
+      // 1) Upload images for all choices that have an image
+      const uploadedChoices = await Promise.all(
+        formData.choices.map(async (choice, index) => {
+          let imageUrl = choice.imageUrl || null;
+
+          if (choice.image) {
+            const uploadResult = await uploadImageToCloudinary(
+              choice.image,
+              "contestants/temp"
+            );
+            imageUrl = uploadResult.imageUrl; // ✅ ใช้ตัวแปรเดียวกัน
+          }
+
+          return {
+            stage_name: choice.label,
+            description: choice.description,
+            image_url: imageUrl,
+            order_number: index + 1,
+          };
+        })
+      );
+
+      // 2) Prepare clean data for backend
       const submitData = {
-        ...formData,
-        choices: formData.choices.filter(choice => choice.label.trim() !== '')
+        title: formData.title,
+        description: formData.description,
+        vote_mode:
+          formData.modeType === "online+remote"
+            ? "hybrid"
+            : formData.modeType,
+        counter_type: formData.counterType,
+        start_time: formData.counterType === "auto"
+          ? `${formData.startDate}T${formData.startTime}`
+          : null,
+        end_time: formData.counterType === "auto"
+          ? `${formData.endDate}T${formData.endTime}`
+          : null,
+        contestants: uploadedChoices,
       };
 
-      let response;
-
-      if (editingId) { 
-        // Update existing poll
-        const formData = buildFormData(submitData);
-        response = await updateRoom(editingId, formData);
+      // 3) Create or update the poll
+      if (editingId) {
+        await updateRoom(editingId, submitData);
         toast.success("อัปเดตโพลสำเร็จ!");
       } else {
-        // Create new poll
         const result = await createVotePoll(submitData);
-        
-        if (result && result.data) {
-          toast.success('สร้างโพลสำเร็จ!');
-          
-          // Navigate to preview page with the API response data
-          navigate(`/admin/preview/${result.data.id}`, {
-            state: { room: result }
-          });
-          return; // Exit early after navigation
-        } else {
-          throw new Error('Invalid response format from server');
-        }
-      }
-
-      // Reset form if not in edit mode
-      if (!editingId) {
-        setFormData({
-          title: '',
-          description: '',
-          modeType: 'online',
-          counterType: 'auto',
-          startDate: '',
-          endDate: '',
-          startTime: '00:00',
-          endTime: '00:00',
-          choices: [
-            { id: 1, label: '', description: '', image: null, imagePreview: null }
-          ]
+        toast.success("สร้างโพลสำเร็จ!");
+        navigate(`/admin/preview/${result.data.id}`, {
+          state: { room: result.data },
         });
       }
 
-      // Navigate back to the list after successful save
-      navigate('/admin/vote-polls');
-
-    } catch (error) {
-      console.error('Error saving poll:', error);
-      let errorMessage = editingId
-        ? 'เกิดข้อผิดพลาดในการอัปเดตโพล กรุณาลองใหม่อีกครั้ง'
-        : 'เกิดข้อผิดพลาดในการสร้างโพล กรุณาลองใหม่อีกครั้ง';
-
-      if (error.response) {
-        if (error.response.data && error.response.data.message) {
-          errorMessage = error.response.data.message;
-        } else if (error.response.status === 400) {
-          errorMessage = 'ข้อมูลไม่ถูกต้อง กรุณาตรวจสอบข้อมูลอีกครั้ง';
-        } else if (error.response.status === 500) {
-          errorMessage = 'เกิดข้อผิดพลาดที่เซิร์ฟเวอร์ กรุณาลองใหม่ในภายหลัง';
-        }
-      } else if (error.request) {
-        errorMessage = 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต';
-      }
-
-      toast.error(errorMessage);
+    } catch (err) {
+      console.error(err);
+      toast.error("อัปโหลดหรือบันทึกล้มเหลว");
     } finally {
       setIsSubmitting(false);
     }

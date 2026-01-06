@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { getPublicVote, submitVote } from "../../services/public-vote.service";
 import ContestantCard from "../../components/voter/ContestantCard";
 import ConfirmVoteModal from "../../components/voter/ConfirmVoteModal";
@@ -7,7 +7,8 @@ import VoteSuccessModal from "../../components/voter/VoteSuccessModal";
 import "./VotePublicPage.css";
 
 export default function VotePublicPage() {
-  const { public_slug } = useParams();
+  const { publicSlug } = useParams();
+  const navigate = useNavigate();
 
   const [poll, setPoll] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -24,14 +25,14 @@ export default function VotePublicPage() {
   useEffect(() => {
     // ต้องมี email ก่อน
     if (!email) {
-      window.location.href = `/vote/${public_slug}/email`;
+      window.location.href = `/vote/${publicSlug}/email`;
       return;
     }
 
     const load = async () => {
       try {
         setLoading(true);
-        const data = await getPublicVote(public_slug);
+        const data = await getPublicVote(publicSlug);
         console.log("poll from api =", data);
         setPoll({
           ...data,
@@ -46,7 +47,7 @@ export default function VotePublicPage() {
     };
 
     load();
-  }, [public_slug, email]);
+  }, [publicSlug, email]);
 
   const contestants = useMemo(
     () => poll?.contestants || [],
@@ -147,6 +148,9 @@ export default function VotePublicPage() {
         onClose={() => {
           localStorage.removeItem(EMAIL_KEY);
           setShowSuccess(false);
+        }}
+        onViewResult={() => {
+          navigate(`/vote/${publicSlug}/rank`);
         }}
       />
     </div>

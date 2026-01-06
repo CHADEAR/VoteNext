@@ -43,3 +43,24 @@ exports.submitVote = async (req, res) => {
     });
   }
 };
+
+
+exports.getLiveRank = async (req, res) => {
+  try {
+    const { publicSlug } = req.params;
+
+    const data = await publicService.getLiveRankBySlug(publicSlug);
+
+    res.json({
+      success: true,
+      data,
+    });
+  } catch (err) {
+    console.error("getLiveRank error:", err);
+    res.status(400).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
+
