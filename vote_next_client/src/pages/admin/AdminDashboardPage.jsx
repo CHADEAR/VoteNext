@@ -1,12 +1,11 @@
-// src/pages/admin/AdminDashboardPage.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getRooms } from "../../services/rooms.service";
+import { deleteRoom } from "../../api/rooms.api";
 import { FiEye, FiShare2, FiEdit, FiTrash2 } from "react-icons/fi";
 import { FaSearch } from "react-icons/fa";
 import Navbar from "../../components/layout/Navbar";
 import "./AdminDashboard.css";
-
 
 const MODE_LABEL = {
   all: "All",
@@ -17,31 +16,34 @@ const MODE_LABEL = {
 
 export default function AdminDashboardPage() {
   const navigate = useNavigate();
+
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
   const [modeFilter, setModeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [openStatus, setOpenStatus] = useState(false);
   const [openMode, setOpenMode] = useState(false);
   const [shareLink, setShareLink] = useState("");
 
+  // ✅ ต้องอยู่ระดับ component เพื่อให้เรียกซ้ำได้
+  const fetchRooms = async () => {
+    try {
+      setLoading(true);
+      const data = await getRooms(); // backend คืน array
+      setRooms(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error(err);
+      setError("ไม่สามารถดึงรายการโพลได้");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchRooms = async () => {
-      try {
-        setLoading(true);
-        const data = await getRooms();
-        setRooms(data || []);
-      } catch (err) {
-        console.error(err);
-        setError("ไม่สามารถดึงรายการโพลได้");
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchRooms();
   }, []);
-
 
   const filteredRooms = useMemo(() => {
     return rooms.filter((room) => {
@@ -59,20 +61,20 @@ export default function AdminDashboardPage() {
       `${window.location.origin}/vote/${room.public_slug || room.round_id}`;
     setShareLink(url);
     if (navigator.clipboard && url) {
-      navigator.clipboard.writeText(url).catch(() => { });
+      navigator.clipboard.writeText(url).catch(() => {});
     }
   };
 
   const handleView = (room) => {
-    // Format the room data to match the expected structure in Preview page
+    // shape ให้ตรงกับ Preview
     const previewData = {
       success: true,
       data: {
         show: {
-          id: room.id,
+          id: room.show_id,
           title: room.title,
           description: room.description,
-          created_at: room.created_at
+          created_at: room.created_at,
         },
         round: {
           id: room.round_id,
@@ -80,15 +82,14 @@ export default function AdminDashboardPage() {
           end_time: room.end_time,
           public_slug: room.public_slug,
           vote_mode: room.vote_mode,
-          status: room.status
+          status: room.status,
         },
-        // Include contestants if available
-        contestants: room.contestants || []
-      }
+        contestants: room.contestants || [],
+      },
     };
 
     navigate(`/admin/preview/${room.round_id}`, {
-      state: { room: previewData }
+      state: { room: previewData },
     });
   };
 
@@ -97,12 +98,18 @@ export default function AdminDashboardPage() {
     navigate("/admin/create-poll", { state: { room } });
   };
 
-  const handleDelete = (room) => {
+  // ✅ hard delete + refresh จาก backend
+  const handleDelete = async (room) => {
     const ok = window.confirm(`ลบโพล "${room.title}" หรือไม่?`);
     if (!ok) return;
-    setRooms((prev) =>
-      prev.filter((r) => r.round_id !== room.round_id)
-    );
+
+    try {
+      await deleteRoom(room.round_id); // 🔥 ลบจริง
+      await fetchRooms();              // 🔁 reload จาก DB
+    } catch (err) {
+      console.error(err);
+      alert("ลบไม่สำเร็จ");
+    }
   };
 
   const handleLogout = () => {
@@ -128,7 +135,6 @@ export default function AdminDashboardPage() {
             <input placeholder="search box" />
           </div>
 
-          {/* Status dropdown */}
           <div className="dropdown">
             <button
               className="dropdown-btn"
@@ -140,7 +146,7 @@ export default function AdminDashboardPage() {
 
             {openStatus && (
               <div className="dropdown-menu">
-                {["all", "pending", "ending"].map((item) => (
+                {["all", "pending", "voting", "closed"].map((item) => (
                   <div
                     key={item}
                     className={`dropdown-item ${
@@ -158,7 +164,6 @@ export default function AdminDashboardPage() {
             )}
           </div>
 
-          {/* Mode dropdown */}
           <div className="dropdown">
             <button
               className="dropdown-btn"
@@ -196,14 +201,10 @@ export default function AdminDashboardPage() {
           </button>
         </div>
 
-        {/* Error */}
         {error && <div className="error">{error}</div>}
 
-        {/* List */}
         {filteredRooms.length === 0 ? (
-          <div className="admin-dashboard__empty">
-            ยังไม่มีโพล
-          </div>
+          <div className="admin-dashboard__empty">ยังไม่มีโพล</div>
         ) : (
           <div className="poll-list">
             {filteredRooms.map((room) => (

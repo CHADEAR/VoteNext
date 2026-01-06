@@ -246,3 +246,22 @@ exports.updateRoom = async (req, res) => {
     client.release();
   }
 };
+
+exports.deleteRoom = async (req, res) => {
+  try {
+    const { id: roundId } = req.params;
+
+    await roomService.deleteRoom(roundId);
+
+    return res.json({
+      success: true,
+      message: 'Deleted room successfully',
+    });
+  } catch (error) {
+    console.error('Error deleting room:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to delete room',
+    });
+  }
+};

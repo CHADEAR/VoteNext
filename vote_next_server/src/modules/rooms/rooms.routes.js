@@ -12,5 +12,6 @@ const cpUpload = upload.any();
 router.get('/', roomsController.getRooms);
 router.post('/', cpUpload, roomsController.createRoom);
 router.put('/:id', cpUpload, roomsController.updateRoom);
+router.delete('/:id', roomsController.deleteRoom);
 
 module.exports = router;

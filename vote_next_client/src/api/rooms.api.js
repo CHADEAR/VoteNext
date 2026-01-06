@@ -17,3 +17,7 @@ export function updateRoom(id, formData) {
   });
 }
 
+export async function deleteRoom(roundId) {
+  return apiClient.delete(`/rooms/${roundId}`);
+}
+
