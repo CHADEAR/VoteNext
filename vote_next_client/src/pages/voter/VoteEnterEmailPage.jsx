@@ -1,6 +1,7 @@
 // src/pages/voter/VoteEnterEmailPage.jsx
-import React, { useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import React, { useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import Navbar from '../../components/layout/Navbar';
 
 const EMAIL_KEY = "vote_next_email";
 
@@ -24,24 +25,28 @@ export default function VoteEnterEmailPage() {
   };
 
   return (
-    <div style={{ padding: 24, maxWidth: 400, margin: "0 auto" }}>
-      <h1>กรอก Email เพื่อโหวต</h1>
+    <div className="vote-email-container">
+      <Navbar />
+      
+      <main className="vote-email-content">
+        <h1>กรอก Email เพื่อโหวต</h1>
 
-      <form onSubmit={handleSubmit}>
-        <input
-          type="email"
-          placeholder="your@email.com"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          style={{ width: "100%", padding: 12, marginBottom: 12 }}
-        />
+        <form onSubmit={handleSubmit} className="email-form">
+          <input
+            type="email"
+            placeholder="your@email.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="email-input"
+          />
 
-        {error && <div style={{ color: "red" }}>{error}</div>}
+          {error && <div className="error-message">{error}</div>}
 
-        <button type="submit" style={{ width: "100%", padding: 12 }}>
-          ไปหน้าโหวต
-        </button>
-      </form>
+          <button type="submit" className="submit-button">
+            ไปหน้าโหวต
+          </button>
+        </form>
+      </main>
     </div>
   );
 }

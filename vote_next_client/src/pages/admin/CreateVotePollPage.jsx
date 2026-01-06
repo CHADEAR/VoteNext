@@ -1,12 +1,12 @@
-// src/pages/admin/CreateVotePoll.jsx
+// src/pages/admin/CreateVotePollPage.jsx
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { createVotePoll } from '../../services/api';
 import { createRoom, updateRoom } from "../../api/rooms.api";
+import Navbar from '../../components/layout/Navbar';
 import './CreateVotePoll.css';
-import logo from '../../assets/Black_White_Modern_Bold_Design_Studio_Logo-removebg-preview.png';
 
 const CreateVotePoll = () => {
   const location = useLocation();
@@ -86,6 +86,11 @@ const CreateVotePoll = () => {
   const navigate = useNavigate();
   const [editingId, setEditingId] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleLogout = () => {
+    localStorage.removeItem("votenext_admin");
+    navigate("/admin/login");
+  };
 
   const buildImageUrl = (path) => {
     if (!path) return null;
@@ -248,18 +253,8 @@ const CreateVotePoll = () => {
   };
 
   return (
-    <div className="create-vote-poll">
-      <header className="topbar">
-        <div className="logo">
-          <img src={logo} alt="logo" style={{ width: '70px', height: '40px' }} />
-        </div>
-        <nav>
-          <a href="/" className="nav-link">Home</a>
-          <a href="/profile" className="nav-link">
-            <div className="profile-icon">👤</div>
-          </a>
-        </nav>
-      </header>
+    <div className="create-vote-container">
+      <Navbar showProfile onLogout={handleLogout} />
 
       <main className="main-content">
         <h1>Create Vote Poll</h1>

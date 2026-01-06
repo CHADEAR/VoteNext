@@ -1,18 +1,21 @@
 import React from "react";
 import { useLocation, useNavigate, Navigate } from "react-router-dom";
-
 import PreviewPollCard from "../../components/admin/preview/PreviewPollCard";
 import PreviewContestantGrid from "../../components/admin/preview/PreviewContestantGrid";
 import PreviewTimeSetting from "../../components/admin/preview/PreviewTimeSetting";
 import PreviewShareBox from "../../components/admin/preview/PreviewShareBox";
-
+import Navbar from "../../components/layout/Navbar";
 import "./AdminPreviewVotePollPage.css";
 
 export default function AdminPreviewVotePollPage() {
   const location = useLocation();
   const navigate = useNavigate();
-
   const room = location.state?.room;
+  
+  const handleLogout = () => {
+    localStorage.removeItem("votenext_admin");
+    navigate("/admin/login");
+  };
 
   // ❗️เข้าตรงโดยไม่มี state
   if (!room) {
@@ -52,7 +55,8 @@ export default function AdminPreviewVotePollPage() {
   }));
 
   return (
-    <div className="preview-page">
+    <div className="preview-container">
+      <Navbar showProfile onLogout={handleLogout} />
       <h1 className="preview-title">Preview Vote Poll</h1>
 
       <PreviewPollCard

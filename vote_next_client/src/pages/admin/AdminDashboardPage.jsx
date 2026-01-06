@@ -1,13 +1,11 @@
-// src/pages/admin/AdminDashboard.jsx
-import React, { useEffect, useMemo, useState, useRef } from "react";
+// src/pages/admin/AdminDashboardPage.jsx
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getRooms } from "../../services/rooms.service";
-import "./AdminDashboard.css";
 import { FiEye, FiShare2, FiEdit, FiTrash2 } from "react-icons/fi";
-import logo from '../../assets/Black_White_Modern_Bold_Design_Studio_Logo-removebg-preview.png';
 import { FaSearch } from "react-icons/fa";
-import { CgProfile } from "react-icons/cg";
-import { IoCamera } from "react-icons/io5";
+import Navbar from "../../components/layout/Navbar";
+import "./AdminDashboard.css";
 
 
 const MODE_LABEL = {
@@ -19,25 +17,13 @@ const MODE_LABEL = {
 
 export default function AdminDashboardPage() {
   const navigate = useNavigate();
-
-  const [openProfile, setOpenProfile] = useState(false);
-
-  const profileRef = useRef(null);
-
-  const fileInputRef = useRef(null);
-
-  const [profileImage, setProfileImage] = useState(null);
-
   const [rooms, setRooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
   const [modeFilter, setModeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
-
   const [openStatus, setOpenStatus] = useState(false);
   const [openMode, setOpenMode] = useState(false);
-
   const [shareLink, setShareLink] = useState("");
 
   useEffect(() => {
@@ -56,16 +42,6 @@ export default function AdminDashboardPage() {
     fetchRooms();
   }, []);
 
-  // ปิดเมื่อคลิกนอกกล่อง
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (profileRef.current && !profileRef.current.contains(e.target)) {
-        setOpenProfile(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
   const filteredRooms = useMemo(() => {
     return rooms.filter((room) => {
@@ -106,28 +82,9 @@ export default function AdminDashboardPage() {
     );
   };
 
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          const ctx = canvas.getContext('2d');
-          const size = Math.min(img.width, img.height);
-          canvas.width = size;
-          canvas.height = size;
-          const x = (img.width - size) / 2;
-          const y = (img.height - size) / 2;
-          ctx.drawImage(img, x, y, size, size, 0, 0, size, size);
-          const resizedDataUrl = canvas.toDataURL('image/jpeg');
-          setProfileImage(resizedDataUrl);
-        };
-        img.src = event.target.result;
-      };
-      reader.readAsDataURL(file);
-    }
+  const handleLogout = () => {
+    localStorage.removeItem("votenext_admin");
+    navigate("/admin/login");
   };
 
   if (loading) {
@@ -136,45 +93,7 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="dashboard">
-      {/* Topbar */}
-      <header className="topbar">
-        <img src={logo} alt="logo" className="logo-img" />
-
-        {/* Profile */}
-        <div className="profile-wrapper" ref={profileRef}>
-          <button
-            className="profile-btn"
-            onClick={() => setOpenProfile(!openProfile)}
-          >
-            {profileImage ? <img src={profileImage} alt="profile" className="profile-img" /> : <CgProfile size={40} className="person-icon-small" />}
-          </button>
-
-          {openProfile && (
-            <div className="profile-dropdown">
-              <div className="profile-avatar">
-                {!profileImage && <CgProfile size={90} className="person-icon" />}
-                {profileImage && <img src={profileImage} alt="avatar" className="avatar-img" />}
-                <span className="camera" onClick={() => fileInputRef.current.click()}><IoCamera /></span>
-              </div>
-
-              <div className="profile-email">
-                admin1@gmail.com
-              </div>
-
-              <button
-                className="logout-btn"
-                onClick={() => {
-                  localStorage.removeItem("votenext_admin");
-                  navigate("/admin/login");
-                }}
-              >
-                LOGOUT
-              </button>
-            </div>
-          )}
-        </div>
-        <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{display: 'none'}} accept="image/*" />
-      </header>
+      <Navbar showProfile onLogout={handleLogout} />
 
       <main className="dashboard-content">
         <h1 className="page-title">My Vote Poll</h1>

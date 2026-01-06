@@ -256,7 +256,7 @@ async function getRoomBySlug(slug) {
     contestants,
   };
 }
-
+  
 
 module.exports = {
   createRoomWithContestants,
