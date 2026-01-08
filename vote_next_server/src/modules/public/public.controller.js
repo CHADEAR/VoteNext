@@ -5,9 +5,9 @@ const publicService = require("./public.service");
 // GET /api/public/vote/:slug
 exports.getPublicVote = async (req, res) => {
   try {
-    const { slug } = req.params;
+    const { publicSlug } = req.params;
 
-    const round = await roomService.getRoomBySlug(slug);
+    const round = await roomService.getRoomBySlug(publicSlug);
 
     return res.json({
       success: true,
