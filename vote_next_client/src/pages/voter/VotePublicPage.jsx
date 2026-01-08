@@ -6,6 +6,26 @@ import ConfirmVoteModal from "../../components/voter/ConfirmVoteModal";
 import VoteSuccessModal from "../../components/voter/VoteSuccessModal";
 import "./VotePublicPage.css";
 
+/**
+ * Countdown formatter (short HH:MM:SS)
+ */
+function Countdown({ start, now, onFinish }) {
+  const diff = Math.max(0, Math.floor((start - now) / 1000));
+  const h = String(Math.floor(diff / 3600)).padStart(1, "0");
+  const m = String(Math.floor((diff % 3600) / 60)).padStart(2, "0");
+  const s = String(diff % 60).padStart(2, "0");
+
+  useEffect(() => {
+    if (diff <= 0 && onFinish) onFinish();
+  }, [diff, onFinish]);
+
+  return (
+    <div className="vote-status warning">
+      เริ่มใน {h}h {m}m {s}s
+    </div>
+  );
+}
+
 export default function VotePublicPage() {
   const { publicSlug } = useParams();
   const navigate = useNavigate();
@@ -23,7 +43,6 @@ export default function VotePublicPage() {
   const email = localStorage.getItem(EMAIL_KEY);
 
   useEffect(() => {
-    // ต้องมี email ก่อน
     if (!email) {
       window.location.href = `/vote/${publicSlug}/email`;
       return;
@@ -33,11 +52,7 @@ export default function VotePublicPage() {
       try {
         setLoading(true);
         const data = await getPublicVote(publicSlug);
-        console.log("poll from api =", data);
-        setPoll({
-          ...data,
-          id: data.round_id,
-        });
+        setPoll(normalizePoll(data));
       } catch (err) {
         console.error(err);
         setError("ไม่สามารถโหลดข้อมูลโพลได้");
@@ -49,34 +64,56 @@ export default function VotePublicPage() {
     load();
   }, [publicSlug, email]);
 
+  // ========= POLL NORMALIZER ========= //
+  function normalizePoll(raw) {
+    const now = raw.server_now ? new Date(raw.server_now) : new Date();
+    const start = raw.start_time ? new Date(raw.start_time) : null;
+    const end = raw.end_time ? new Date(raw.end_time) : null;
+
+    let computedStatus = raw.status;
+    let startInFuture = false;
+
+    if (raw.counter_type === "auto" && start && end) {
+      if (now < start) {
+        computedStatus = "pending";
+        startInFuture = true;
+      } else if (now >= start && now < end) {
+        computedStatus = "voting";
+      } else if (now >= end) {
+        computedStatus = "closed";
+      }
+    }
+
+    return {
+      ...raw,
+      id: raw.id || raw.round_id, // safety
+      computedStatus,
+      startInFuture,
+      now,
+      start,
+      end,
+      isAuto: raw.counter_type === "auto",
+      isManual: raw.counter_type === "manual",
+    };
+  }
+
   const contestants = useMemo(
     () => poll?.contestants || [],
     [poll]
   );
 
-  const isVotingOpen = poll?.status === "voting";
+  const isVotingOpen = poll?.computedStatus === "voting";
 
-  const handleVoteClick = (contestant) => {
+  // ========= EVENT HANDLERS ========= //
+  function handleVoteClick(contestant) {
     if (!isVotingOpen || voting || showSuccess) return;
-    if (!poll?.id) {
-      setError("ไม่พบข้อมูลโพล");
-      return;
-    }
-
     setSelectedContestant(contestant);
     setShowConfirm(true);
-  };
+  }
 
-  const handleConfirmVote = async () => {
-    if (!selectedContestant) return;
-    if (!poll?.id) {
-      setError("ไม่พบข้อมูลโพล");
-      return;
-    }
-    if (!isVotingOpen) {
-      setError("รอบนี้ยังไม่เปิดให้โหวต");
-      return;
-    }
+  async function handleConfirmVote() {
+    if (!selectedContestant || !poll?.id) return;
+    if (!isVotingOpen) return;
 
     try {
       setVoting(true);
@@ -90,20 +127,31 @@ export default function VotePublicPage() {
     } finally {
       setVoting(false);
     }
+  }
+
+  // ========= COUNTDOWN FINISH ACTION ========= //
+  const handleCountdownFinish = () => {
+    // reload → refresh state → enter voting
+    window.location.reload();
   };
+
+  // ========= CLOSED ACTION ========= //
+  useEffect(() => {
+    if (poll?.computedStatus === "closed") {
+      navigate(`/vote/${publicSlug}/rank`);
+    }
+  }, [poll?.computedStatus, navigate, publicSlug]);
 
   return (
     <div className="vote-page">
       <header className="vote-header">
         <div className="vote-logo">VOTE NEXT</div>
-        <div className="vote-search">
-          <input placeholder="Search contestants (UI only)" />
-        </div>
       </header>
 
       {loading && <div className="vote-status">กำลังโหลด...</div>}
       {error && <div className="vote-status error">{error}</div>}
 
+      {/* MAIN */}
       {poll && !loading && (
         <>
           <section className="poll-info">
@@ -111,20 +159,31 @@ export default function VotePublicPage() {
             {poll.description && <p>{poll.description}</p>}
           </section>
 
+          {/* STATUS DISPLAY */}
           {!isVotingOpen && (
-            <div className="vote-status warning">
-              {poll.status === "pending" && "ยังไม่เปิดให้โหวต"}
-              {poll.status === "closed" && "ปิดการโหวตแล้ว"}
-            </div>
+            <>
+              {poll.computedStatus === "pending" && poll.isManual && (
+                <div className="vote-status warning">ยังไม่เริ่มโหวต</div>
+              )}
+
+              {poll.computedStatus === "pending" && poll.isAuto && poll.startInFuture && (
+                <Countdown
+                  start={poll.start}
+                  now={poll.now}
+                  onFinish={handleCountdownFinish}
+                />
+              )}
+            </>
           )}
 
+          {/* GRID */}
           <section className="contestant-grid">
             {contestants.map((c) => (
               <ContestantCard
                 key={c.id}
                 contestant={c}
-                onVote={handleVoteClick}
                 disabled={!isVotingOpen || voting || showSuccess}
+                onVote={handleVoteClick}
               />
             ))}
 

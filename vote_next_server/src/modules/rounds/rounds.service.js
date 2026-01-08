@@ -1,6 +1,7 @@
 // vote_next_server/src/modules/rounds/rounds.service.js
 const { pool } = require("../../config/db");
 
+
 /**
  * ตรวจสอบสถานะ round และ auto-close ถ้าหมดเวลา
  * @param {Object} round
@@ -19,6 +20,7 @@ async function ensureRoundIsUpToDate(round) {
 
   return round;
 }
+
 
 /**
  * ปิดรอบโหวต (manual / auto ใช้ร่วมกัน)
@@ -114,8 +116,9 @@ async function startRound(roundId) {
 
     const updated = await client.query(
       `UPDATE rounds
-       SET status = 'voting',
-           start_time = NOW()
+       SET status='voting',
+           start_time = COALESCE(start_time, NOW())
+
        WHERE id = $1
        RETURNING id, status, start_time, end_time`,
       [roundId]

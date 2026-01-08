@@ -13,31 +13,51 @@ exports.submitOnlineVote = async ({ roundId, contestantId, email }) => {
   try {
     await client.query("BEGIN");
 
-    // 1) ตรวจสอบ round
-    const roundRes = await client.query(
-      `SELECT id, status
+    // 1) load round w/ locking
+    const r = await client.query(
+      `SELECT id, status AS db_status, start_time, end_time, counter_type
        FROM rounds
-       WHERE id = $1
+       WHERE id=$1
        FOR UPDATE`,
       [roundId]
     );
 
-    if (roundRes.rowCount === 0) {
+    if (r.rowCount === 0) {
       throw new Error("Round not found");
     }
 
-    const round = roundRes.rows[0];
+    const round = r.rows[0];
 
-    if (round.status !== "voting") {
+    // 2) compute hybrid status
+    const now = new Date();
+    let hybridStatus = round.db_status;
+
+    if (round.counter_type === "auto" && round.start_time && round.end_time) {
+      const start = new Date(round.start_time);
+      const end = new Date(round.end_time);
+
+      if (now < start) hybridStatus = "pending";
+      else if (now >= start && now < end) hybridStatus = "voting";
+      else if (now >= end) hybridStatus = "closed";
+    }
+
+    // 3) auto sync status closed to DB
+    if (hybridStatus === "closed" && round.db_status !== "closed") {
+      await client.query(
+        `UPDATE rounds SET status='closed' WHERE id=$1`,
+        [roundId]
+      );
+    }
+
+    // 4) final guard for voting
+    if (hybridStatus !== "voting") {
       throw new Error("Voting is not open");
     }
 
-    // 2) ตรวจสอบ contestant อยู่ใน round นี้จริง
+    // 5) contestant validation
     const contestantRes = await client.query(
-      `SELECT 1
-       FROM round_contestants
-       WHERE round_id = $1
-         AND contestant_id = $2`,
+      `SELECT 1 FROM round_contestants
+       WHERE round_id=$1 AND contestant_id=$2`,
       [roundId, contestantId]
     );
 
@@ -45,12 +65,10 @@ exports.submitOnlineVote = async ({ roundId, contestantId, email }) => {
       throw new Error("Contestant is not in this round");
     }
 
-    // 3) insert vote
+    // 6) insert vote
     await client.query(
-      `
-      INSERT INTO online_votes (round_id, contestant_id, voter_email)
-      VALUES ($1, $2, $3)
-      `,
+      `INSERT INTO online_votes (round_id, contestant_id, voter_email)
+       VALUES ($1, $2, $3)`,
       [roundId, contestantId, email.toLowerCase()]
     );
 
@@ -58,7 +76,6 @@ exports.submitOnlineVote = async ({ roundId, contestantId, email }) => {
   } catch (err) {
     await client.query("ROLLBACK");
 
-    // duplicate email
     if (err.code === "23505") {
       throw new Error("This email has already voted in this round");
     }
@@ -68,6 +85,7 @@ exports.submitOnlineVote = async ({ roundId, contestantId, email }) => {
     client.release();
   }
 };
+
 
 /**
  * Get live rank by public slug (online + remote raw score)

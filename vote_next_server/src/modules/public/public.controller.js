@@ -6,12 +6,14 @@ const publicService = require("./public.service");
 exports.getPublicVote = async (req, res) => {
   try {
     const { publicSlug } = req.params;
-
     const round = await roomService.getRoomBySlug(publicSlug);
 
     return res.json({
       success: true,
-      data: round,
+      data: {
+        ...round,
+        server_now: new Date().toISOString()
+      }
     });
   } catch (error) {
     console.error("Error fetching public vote:", error);
@@ -21,6 +23,7 @@ exports.getPublicVote = async (req, res) => {
     });
   }
 };
+
 
 exports.submitVote = async (req, res) => {
   try {

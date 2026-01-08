@@ -207,17 +207,16 @@ return rounds.map(r => ({
 }
 
 async function getRoomBySlug(slug) {
-  // 1) โหลด round + show
   const { rows } = await pool.query(
     `
     SELECT
-      r.id AS round_id,
+      r.id,
       r.round_name,
-      r.status,
-      r.vote_mode,
+      r.status AS db_status,
       r.start_time,
       r.end_time,
       r.public_slug,
+      r.counter_type,
       s.title,
       s.description
     FROM rounds r
@@ -232,9 +231,37 @@ async function getRoomBySlug(slug) {
     throw new Error("Poll not found");
   }
 
-  const round = rows[0];
+  let round = rows[0];
 
-  // 2) โหลด contestants ของ round นี้
+  // compute status จาก server time
+  const now = new Date();
+
+  let computedStatus = round.db_status;
+
+  // after computing computedStatus
+if (round.counter_type === "auto" && round.start_time && round.end_time) {
+  const start = new Date(round.start_time);
+  const end = new Date(round.end_time);
+
+  if (now < start) {
+    computedStatus = "pending";
+  } else if (now >= start && now < end) {
+    computedStatus = "voting";
+  } else if (now >= end) {
+    computedStatus = "closed";
+
+    // auto close sync to DB (only when DB is not closed yet)
+    if (round.db_status !== "closed") {
+      await pool.query(
+        `UPDATE rounds SET status='closed' WHERE id=$1`,
+        [round.id]
+      );
+      round.db_status = "closed";
+    }
+  }
+}
+
+  // โหลด contestants เดิม
   const { rows: contestants } = await pool.query(
     `
     SELECT
@@ -248,14 +275,16 @@ async function getRoomBySlug(slug) {
     WHERE rc.round_id = $1
     ORDER BY c.order_number ASC
     `,
-    [round.round_id]
+    [round.id]
   );
 
   return {
     ...round,
-    contestants,
+    status: computedStatus,
+    contestants
   };
 }
+
   
 async function deleteRoom(roundId) {
   const client = await pool.connect();

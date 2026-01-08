@@ -444,7 +444,7 @@ const CreateVotePoll = () => {
             </button>
 
             {/* ✅ Preview */}
-            <button
+            {/* <button
               type="button"
               className="btn btn-preview"
               onClick={() =>
@@ -462,7 +462,7 @@ const CreateVotePoll = () => {
               }
             >
               Preview
-            </button>
+            </button> */}
 
             {/* Submit จริง */}
             <button
