@@ -7,7 +7,6 @@ import PreviewTimeSetting from "../../components/admin/preview/PreviewTimeSettin
 import PreviewShareBox from "../../components/admin/preview/PreviewShareBox";
 import Navbar from "../../components/layout/Navbar";
 import "./AdminPreviewVotePollPage.css";
-import { startRound } from "../../api/rounds.api";
 import { toast } from "react-toastify";
 
 export default function AdminPreviewVotePollPage() {
@@ -50,20 +49,6 @@ export default function AdminPreviewVotePollPage() {
     image_url: c.image_url || "",
   }));
 
-  // ✅ START VOTE HANDLER
-  const handleStartVote = async () => {
-    try {
-      await startRound(round.id);
-      toast.success("เริ่มโหวตเรียบร้อยแล้ว");
-      window.location.reload(); // ให้ status อัปเดต
-    } catch (error) {
-      console.error("Failed to start vote:", error);
-      toast.error(
-        error.response?.data?.message || "ไม่สามารถเริ่มโหวตได้"
-      );
-    }
-  };
-
   return (
     <div className="preview-container">
       <Navbar showProfile onLogout={handleLogout} />
@@ -97,15 +82,7 @@ export default function AdminPreviewVotePollPage() {
           Previous
         </button>
 
-        <button
-          className="btn-primary"
-          onClick={handleStartVote}
-          disabled={round.status === "started"}
-        >
-          {round.status === "started"
-            ? "โหวตได้แล้ว"
-            : "เริ่มโหวต"}
-        </button>
+        <button className="btn-primary">view result</button>
       </div>
     </div>
   );
