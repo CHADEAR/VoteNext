@@ -190,7 +190,7 @@ const CreateVotePoll = () => {
               choice.image,
               "contestants/temp"
             );
-            imageUrl = uploadResult.imageUrl; // ✅ ใช้ตัวแปรเดียวกัน
+            imageUrl = uploadResult.imageUrl;
           }
 
           return {

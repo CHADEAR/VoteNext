@@ -1,31 +1,63 @@
 // vote_next_server/src/modules/rounds/rounds.service.js
 const { pool } = require("../../config/db");
 
-
 /**
- * ตรวจสอบสถานะ round และ auto-close ถ้าหมดเวลา
+ * ตรวจสอบสถานะ round และ auto-open/auto-close ถ้าถึงเวลา
  * @param {Object} round
  * @returns {Promise<Object>}
  */
 async function ensureRoundIsUpToDate(round) {
-  if (round.status !== "voting" || !round.end_time) {
-    return round;
+  const now = new Date();
+
+  // --- AUTO-START --- (pending -> voting)
+  if (round.status === "pending" && round.start_time) {
+    if (now >= new Date(round.start_time)) {
+      // idempotent safe
+      await startRoundAuto(round.id);
+      // re-fetch for consistency
+      return getRound(round.id);
+    }
   }
 
-  const now = new Date();
-  if (now >= new Date(round.end_time)) {
-    await closeRound(round.id, "auto");
-    return { ...round, status: "closed" };
+  // --- AUTO-STOP --- (voting -> closed)
+  if (round.status === "voting" && round.end_time) {
+    if (now >= new Date(round.end_time)) {
+      await closeRound(round.id, "auto");
+      return { ...round, status: "closed" };
+    }
   }
 
   return round;
 }
 
+/**
+ * AUTO start ใช้เมื่อถึง start_time
+ * กัน start ซ้ำด้วย WHERE status='pending'
+ */
+async function startRoundAuto(roundId) {
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    await client.query(
+      `UPDATE rounds
+       SET status='voting',
+           start_time = COALESCE(start_time, NOW())
+       WHERE id = $1 AND status='pending'`,
+      [roundId]
+    );
+
+    await client.query("COMMIT");
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+}
 
 /**
  * ปิดรอบโหวต (manual / auto ใช้ร่วมกัน)
- * @param {string} roundId
- * @param {"auto"|"manual"} reason
  */
 async function closeRound(roundId, reason) {
   const client = await pool.connect();
@@ -52,7 +84,6 @@ async function closeRound(roundId, reason) {
       return;
     }
 
-    // ❗ ปิดรอบอย่างเดียว ไม่แก้ end_time
     await client.query(
       `UPDATE rounds
        SET status = 'closed'
@@ -70,11 +101,11 @@ async function closeRound(roundId, reason) {
 }
 
 /**
- * โหลด round ตาม id พร้อม ensure state
+ * โหลด round พร้อม ensure
  */
 async function getRound(roundId) {
   const result = await pool.query(
-    `SELECT id, status, end_time
+    `SELECT id, status, start_time, end_time   -- <== เพิ่ม start_time
      FROM rounds
      WHERE id = $1`,
     [roundId]
@@ -88,7 +119,8 @@ async function getRound(roundId) {
 }
 
 /**
- * เปิดรอบโหวต (pending -> voting)
+ * MANUAL start (pending -> voting)
+ * กดปุ่มจากหน้า admin
  */
 async function startRound(roundId) {
   const client = await pool.connect();
@@ -118,8 +150,7 @@ async function startRound(roundId) {
       `UPDATE rounds
        SET status='voting',
            start_time = COALESCE(start_time, NOW())
-
-       WHERE id = $1
+       WHERE id = $1 AND status='pending'   -- <== กัน start ซ้ำ
        RETURNING id, status, start_time, end_time`,
       [roundId]
     );

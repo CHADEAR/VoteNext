@@ -8,5 +8,8 @@ router.post('/:roundId/next', controller.createNextRound);
 router.post("/:roundId/compute-results", controller.computeResults);
 router.post("/shows/:showId/first-round", controller.createFirstRound);
 
+router.get("/:roundId", controller.getRound);
+
+
 
 module.exports = router;

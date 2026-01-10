@@ -1,13 +1,14 @@
 // src/pages/admin/AdminPreviewVotePollPage.jsx
-import React from "react";
+
+import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate, Navigate } from "react-router-dom";
+import apiClient from "../../api/apiClient";
 import PreviewPollCard from "../../components/admin/preview/PreviewPollCard";
 import PreviewContestantGrid from "../../components/admin/preview/PreviewContestantGrid";
 import PreviewTimeSetting from "../../components/admin/preview/PreviewTimeSetting";
 import PreviewShareBox from "../../components/admin/preview/PreviewShareBox";
 import Navbar from "../../components/layout/Navbar";
 import "./AdminPreviewVotePollPage.css";
-import { toast } from "react-toastify";
 
 export default function AdminPreviewVotePollPage() {
   const location = useLocation();
@@ -19,14 +20,40 @@ export default function AdminPreviewVotePollPage() {
     return <Navigate to="/admin/dashboard" replace />;
   }
 
-  const { show, round, contestants = [] } = room.data;
+  const show = room.data.show;
+  const contestants = room.data.contestants || [];
+
+  // Local round state
+  const [round, setRound] = useState(room.data.round);
+
+  // GET round from backend (auto/manual update)
+  const fetchRound = async () => {
+    try {
+      const res = await apiClient.get(`/rounds/${round.id}`);
+      const data = res.data?.data || res.data;
+
+      // Update only round
+      setRound((prev) => ({
+        ...prev,
+        ...data,
+      }));
+    } catch (err) {
+      console.error("Failed to refresh round:", err);
+    }
+  };
+
+  // Polling every 2s
+  useEffect(() => {
+    const interval = setInterval(fetchRound, 2000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleLogout = () => {
     localStorage.removeItem("votenext_admin");
     navigate("/admin/login");
   };
 
-  // counter type
+  // Determine counter type
   const counterType =
     round.start_time && round.end_time ? "auto" : "manual";
 
@@ -55,10 +82,7 @@ export default function AdminPreviewVotePollPage() {
 
       <h1 className="preview-title">Preview Vote Poll</h1>
 
-      <PreviewPollCard
-        title={show.title}
-        description={show.description}
-      />
+      <PreviewPollCard title={show.title} description={show.description} />
 
       <PreviewContestantGrid contestants={mappedContestants} />
 
@@ -71,14 +95,14 @@ export default function AdminPreviewVotePollPage() {
           endDate={toDate(round.end_time)}
           startTime={toTime(round.start_time)}
           endTime={toTime(round.end_time)}
+          status={round.status}
+          roundId={round.id}
+          onRefresh={fetchRound}
         />
       </div>
 
       <div className="preview-actions">
-        <button
-          className="btn-secondary"
-          onClick={() => navigate(-1)}
-        >
+        <button className="btn-secondary" onClick={() => navigate(-1)}>
           Previous
         </button>
 

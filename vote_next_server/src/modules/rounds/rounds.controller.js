@@ -11,7 +11,6 @@ exports.start = async (req, res) => {
   try {
     const { roundId } = req.params;
     const round = await startRound(roundId);
-
     res.json({ success: true, data: round });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
@@ -19,15 +18,13 @@ exports.start = async (req, res) => {
 };
 
 /**
- * POST /api/rounds/:roundId/stop
- * manual close
+ * POST /api/rounds/:roundId/stop (manual)
  */
 exports.stop = async (req, res) => {
   try {
     const { roundId } = req.params;
 
-    // ensure latest state first (auto-close safety)
-    await getRound(roundId);
+    await getRound(roundId); // ensure auto-close if time passed
 
     await closeRound(roundId, "manual");
 
@@ -37,7 +34,7 @@ exports.stop = async (req, res) => {
   }
 };
 
-const roundsService = require('./rounds.service');
+const roundsService = require("./rounds.service");
 
 exports.createFirstRound = async (req, res) => {
   try {
@@ -49,7 +46,7 @@ exports.createFirstRound = async (req, res) => {
       roundName,
       startTime,
       endTime,
-      createdBy: req.admin?.id || null
+      createdBy: req.admin?.id || null,
     });
 
     res.json({ success: true, data: result });
@@ -57,7 +54,6 @@ exports.createFirstRound = async (req, res) => {
     res.status(400).json({ success: false, message: e.message });
   }
 };
-
 
 exports.createNextRound = async (req, res) => {
   try {
@@ -69,10 +65,7 @@ exports.createNextRound = async (req, res) => {
 
     res.json({ success: true, data: result });
   } catch (err) {
-    res.status(400).json({
-      success: false,
-      message: err.message,
-    });
+    res.status(400).json({ success: false, message: err.message });
   }
 };
 
@@ -80,14 +73,21 @@ exports.computeResults = async (req, res) => {
   try {
     const { roundId } = req.params;
     const data = await roundsService.computeRoundResults(roundId);
-    return res.json({
-      success: true,
-      data,
-    });
+    res.json({ success: true, data });
   } catch (err) {
-    return res.status(400).json({
-      success: false,
-      message: err.message,
-    });
+    res.status(400).json({ success: false, message: err.message });
+  }
+};
+
+/**
+ * GET /api/rounds/:roundId
+ */
+exports.getRound = async (req, res) => {
+  try {
+    const { roundId } = req.params;
+    const data = await getRound(roundId);
+    res.json({ success: true, data });
+  } catch (err) {
+    res.status(404).json({ success: false, message: err.message });
   }
 };
