@@ -9,7 +9,6 @@ import Navbar from '../../components/layout/Navbar';
 import './CreateVotePoll.css';
 import { uploadImageToCloudinary } from "../../services/cloudinaryUpload.service";
 
-
 const CreateVotePoll = () => {
   const location = useLocation();
   const [formData, setFormData] = useState({
@@ -156,13 +155,11 @@ const CreateVotePoll = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Basic validation in Thai
     if (!formData.title.trim()) {
       toast.error('กรุณาใส่ชื่อโพล');
       return;
     }
 
-    // Filter out empty choices
     const validChoices = formData.choices.filter(choice => choice.label.trim() !== '');
 
     if (validChoices.length < 2) {
@@ -170,7 +167,6 @@ const CreateVotePoll = () => {
       return;
     }
 
-    // Check if any choice is missing required fields
     const hasIncompleteChoices = validChoices.some(choice => !choice.label.trim());
     if (hasIncompleteChoices) {
       toast.error('กรุณากรอกชื่อตัวเลือกให้ครบทุกช่อง');
@@ -180,7 +176,6 @@ const CreateVotePoll = () => {
     try {
       setIsSubmitting(true);
 
-      // 1) Upload images for all choices that have an image
       const uploadedChoices = await Promise.all(
         formData.choices.map(async (choice, index) => {
           let imageUrl = choice.imageUrl || null;
@@ -202,7 +197,11 @@ const CreateVotePoll = () => {
         })
       );
 
-      // 2) Prepare clean data for backend
+      const fixTZ = (date, time) => {
+        if (!date || !time) return null;
+        return `${date}T${time}:00+07:00`;
+      };
+      
       const submitData = {
         title: formData.title,
         description: formData.description,
@@ -212,15 +211,14 @@ const CreateVotePoll = () => {
             : formData.modeType,
         counter_type: formData.counterType,
         start_time: formData.counterType === "auto"
-          ? `${formData.startDate}T${formData.startTime}`
+          ? fixTZ(formData.startDate, formData.startTime)
           : null,
         end_time: formData.counterType === "auto"
-          ? `${formData.endDate}T${formData.endTime}`
+          ? fixTZ(formData.endDate, formData.endTime)
           : null,
         contestants: uploadedChoices,
       };
 
-      // 3) Create or update the poll
       if (editingId) {
         await updateRoom(editingId, submitData);
         toast.success("อัปเดตโพลสำเร็จ!");

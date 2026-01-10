@@ -66,7 +66,7 @@ const Navbar = ({ showProfile = false, onLogout }) => {
             {profileImage ? (
               <img src={profileImage} alt="profile" className="profile-img" />
             ) : (
-              <CgProfile size={40} className="person-icon-small" />
+              <CgProfile size={30} className="person-icon-small" />
             )}
           </button>
 
