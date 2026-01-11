@@ -168,15 +168,15 @@ exports.updateRoom = async (req, res) => {
     // -----------------------------
     await client.query(
       `
-      UPDATE rounds
-      SET vote_mode = $1,
-          start_time = $2,
-          end_time = $3,
-          counter_type = CASE
-            WHEN $2 IS NOT NULL AND $3 IS NOT NULL THEN 'auto'
-            ELSE 'manual'
-          END
-      WHERE id = $4
+   UPDATE rounds
+   SET vote_mode = $1,
+       start_time = $2::timestamptz,
+       end_time = $3::timestamptz,
+       counter_type = CASE
+        WHEN $2 IS NOT NULL AND $3 IS NOT NULL THEN 'auto'
+      ELSE 'manual'
+    END
+   WHERE id = $4
       `,
       [voteMode || "online", start_time || null, end_time || null, roundId]
     );
