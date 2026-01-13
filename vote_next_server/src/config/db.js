@@ -1,3 +1,4 @@
+// vote_next_server/src/config/db.js
 const { Pool } = require("pg");
 const { DATABASE_URL } = require("./env");
 

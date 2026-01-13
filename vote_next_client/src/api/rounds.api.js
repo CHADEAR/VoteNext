@@ -1,4 +1,4 @@
-// src/api/rounds.api.js
+// vote_next_client/src/api/rounds.api.js
 import apiClient from "./apiClient";
 
 export const startRound = (roundId) => {
@@ -8,3 +8,4 @@ export const startRound = (roundId) => {
 export const stopRound = (roundId) => {
   return apiClient.post(`/rounds/${roundId}/stop`);
 };
+
