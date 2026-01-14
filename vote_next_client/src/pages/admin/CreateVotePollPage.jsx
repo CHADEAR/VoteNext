@@ -1,4 +1,3 @@
-// src/pages/admin/CreateVotePollPage.jsx
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'react-toastify';
@@ -105,6 +104,9 @@ const CreateVotePoll = () => {
     const room = location.state?.room;
     if (!room) return;
 
+    // FIX: normalize structure (Dashboard vs Preview)
+    const raw = room?.data || room;  // Dashboard → room | Preview → room.data
+
     const toDate = (iso) => {
       if (!iso) return '';
       const d = new Date(iso);
@@ -119,38 +121,41 @@ const CreateVotePoll = () => {
     };
 
     const modeType =
-      room.vote_mode === 'hybrid'
+      raw.vote_mode === 'hybrid'
         ? 'online+remote'
-        : room.vote_mode || 'online';
+        : raw.vote_mode || 'online';
 
     const mappedChoices =
-      (room.contestants || [])
+      (raw.contestants || [])
         .sort((a, b) => (a.order_number || 0) - (b.order_number || 0))
         .map((c, idx) => ({
           id: c.id || idx + 1,
           label: c.stage_name || '',
-          description: c.description || c.detail || '',
+          description: c.description || '',
           image: null,
           imagePreview: buildImageUrl(c.image_url),
           imageUrl: c.image_url || '',
-        })) || [];
+        }));
 
     setFormData({
-      title: room.title || '',
-      description: room.description || '',
+      title: raw.title || '',
+      description: raw.description || '',
       modeType,
-      counterType: room.start_time || room.end_time ? 'auto' : 'manual',
-      startDate: toDate(room.start_time),
-      endDate: toDate(room.end_time),
-      startTime: toTime(room.start_time),
-      endTime: toTime(room.end_time),
-      choices:
-        mappedChoices.length > 0
-          ? mappedChoices
-          : [{ id: 1, label: '', description: '', image: null, imagePreview: null }],
+      counterType: raw.start_time || raw.end_time ? 'auto' : 'manual',
+      startDate: toDate(raw.start_time),
+      endDate: toDate(raw.end_time),
+      startTime: toTime(raw.start_time),
+      endTime: toTime(raw.end_time),
+      choices: mappedChoices.length > 0
+        ? mappedChoices
+        : [{ id: 1, label: '', description: '', image: null, imagePreview: null }],
     });
-    setEditingId(room.round_id || room.id || null);
-  }, [location.state]);
+
+    // FIX: editingId fallback
+    setEditingId(raw.round_id || raw.id || null);
+
+    // FIX: dependency ให้ trigger เมื่อ room เปลี่ยน
+  }, [location.state?.room]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -197,11 +202,13 @@ const CreateVotePoll = () => {
         })
       );
 
+      // convert date + time → postgres friendly timestamptz
       const fixTZ = (date, time) => {
         if (!date || !time) return null;
-        return `${date}T${time}:00+07:00`;
+        const timeWithSeconds = time.includes(':') ? time : `${time}:00`;
+        return `${date} ${timeWithSeconds}+07`;
       };
-      
+
       const submitData = {
         title: formData.title,
         description: formData.description,
@@ -210,14 +217,14 @@ const CreateVotePoll = () => {
             ? "hybrid"
             : formData.modeType,
         counter_type: formData.counterType,
-        start_time: formData.counterType === "auto"
-          ? fixTZ(formData.startDate, formData.startTime)
-          : null,
-        end_time: formData.counterType === "auto"
-          ? fixTZ(formData.endDate, formData.endTime)
-          : null,
         contestants: uploadedChoices,
       };
+
+      // attach start/end only if auto mode
+      if (formData.counterType === "auto") {
+        submitData.start_time = fixTZ(formData.startDate, formData.startTime);
+        submitData.end_time = fixTZ(formData.endDate, formData.endTime);
+      }
 
       if (editingId) {
         await updateRoom(editingId, submitData);
@@ -225,8 +232,20 @@ const CreateVotePoll = () => {
       } else {
         const result = await createVotePoll(submitData);
         toast.success("สร้างโพลสำเร็จ!");
-        navigate(`/admin/preview/${result.data.id}`, {
-          state: { room: result.data },
+        const show = result.data.show;
+        const round = result.data.round;
+        const contestants = result.data.contestants;
+
+        navigate(`/admin/preview/${show.id}`, {
+          state: {
+            room: {
+              data: {
+                show,
+                round,
+                contestants,
+              }
+            }
+          },
         });
       }
 
@@ -438,29 +457,8 @@ const CreateVotePoll = () => {
               className="btn btn-secondary"
               onClick={() => navigate(-1)}
             >
-              ย้อนกลับ
+              previous
             </button>
-
-            {/* ✅ Preview */}
-            {/* <button
-              type="button"
-              className="btn btn-preview"
-              onClick={() =>
-                navigate(
-                  editingId
-                    ? `/admin/preview/${editingId}`
-                    : `/admin/preview/temp`,
-                  {
-                    state: {
-                      draftPoll: formData,
-                      isDraft: true,
-                    },
-                  }
-                )
-              }
-            >
-              Preview
-            </button> */}
 
             {/* Submit จริง */}
             <button
@@ -469,10 +467,10 @@ const CreateVotePoll = () => {
               disabled={isSubmitting}
             >
               {isSubmitting
-                ? 'กำลังบันทึก...'
+                ? 'Saving...'
                 : editingId
-                  ? 'บันทึกการเปลี่ยนแปลง'
-                  : 'สร้างโพล'}
+                  ? 'Saved changes'
+                  : 'Created poll'}
             </button>
           </div>
 

@@ -57,25 +57,25 @@ export default function AdminPreviewVotePollPage() {
   const counterType =
     round.start_time && round.end_time ? "auto" : "manual";
 
- const toDate = (iso) => {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (isNaN(d)) return "";
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-};
+  const toDate = (iso) => {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (isNaN(d)) return "";
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  };
 
-const toTime = (iso) => {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (isNaN(d)) return "";
-  const hh = String(d.getHours()).padStart(2, "0");     // LOCAL +07
-  const mm = String(d.getMinutes()).padStart(2, "0");
-  const ss = String(d.getSeconds()).padStart(2, "0");
-  return `${hh}:${mm}:${ss}`;
-};
+  const toTime = (iso) => {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (isNaN(d)) return "";
+    const hh = String(d.getHours()).padStart(2, "0");     // LOCAL +07
+    const mm = String(d.getMinutes()).padStart(2, "0");
+    const ss = String(d.getSeconds()).padStart(2, "0");
+    return `${hh}:${mm}:${ss}`;
+  };
 
 
   const mappedContestants = contestants.map((c, index) => ({
@@ -115,7 +115,12 @@ const toTime = (iso) => {
           Previous
         </button>
 
-        <button className="btn-primary">view result</button>
+        <button
+          className="btn-primary"
+          onClick={() => navigate(`/admin/round-results`)}
+        >
+          view result
+        </button>
       </div>
     </div>
   );
