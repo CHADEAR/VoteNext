@@ -11,13 +11,12 @@ export function createRoom(formData) {
   });
 }
 
-export function updateRoom(id, formData) {
-  return apiClient.put(`/rooms/${id}`, formData, {
-    headers: { "Content-Type": "multipart/form-data" },
+export function patchRoom(id, payload) {
+  return apiClient.patch(`/rooms/${id}`, payload, {
+    headers: { "Content-Type": "application/json" },
   });
 }
 
-export async function deleteRoom(roundId) {
+export function deleteRoom(roundId) {
   return apiClient.delete(`/rooms/${roundId}`);
 }
-

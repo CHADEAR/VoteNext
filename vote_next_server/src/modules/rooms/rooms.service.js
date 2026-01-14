@@ -319,6 +319,152 @@ async function deleteRoom(roundId) {
   }
 }
 
+async function applyContestantPatch(client, showId, roundId, patch) {
+  if (!patch) return;
+
+  const { add = [], update = [], remove = [] } = patch;
+
+  // ------------------------------
+  // ADD
+  // ------------------------------
+  for (const c of add) {
+    const insertRes = await client.query(
+      `
+      INSERT INTO contestants (show_id, stage_name, description, image_url, order_number)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING id
+      `,
+      [
+        showId,
+        c.stage_name,
+        c.description || "",
+        c.image_url || null,
+        c.order_number || null
+      ]
+    );
+
+    const newId = insertRes.rows[0].id;
+
+    // map to round
+    await client.query(
+      `
+      INSERT INTO round_contestants (round_id, contestant_id)
+      VALUES ($1, $2)
+      `,
+      [roundId, newId]
+    );
+  }
+
+
+  // ------------------------------
+  // UPDATE (merge)
+  // ------------------------------
+  for (const c of update) {
+    const fields = [];
+    const values = [];
+    let idx = 1;
+
+    if (c.stage_name !== undefined) {
+      fields.push(`stage_name = $${idx++}`);
+      values.push(c.stage_name);
+    }
+    if (c.description !== undefined) {
+      fields.push(`description = $${idx++}`);
+      values.push(c.description);
+    }
+    if (c.image_url !== undefined) {
+      fields.push(`image_url = $${idx++}`);
+      values.push(c.image_url);
+    }
+    if (c.order_number !== undefined) {
+      fields.push(`order_number = $${idx++}`);
+      values.push(c.order_number);
+    }
+
+    if (fields.length > 0) {
+      values.push(c.id);
+      await client.query(
+        `
+        UPDATE contestants
+        SET ${fields.join(", ")}
+        WHERE id = $${idx}
+        `,
+        values
+      );
+    }
+  }
+
+
+  // ------------------------------
+  // REMOVE (hard delete)
+  // ------------------------------
+  for (const id of remove) {
+    // unmap from round
+    await client.query(
+      `DELETE FROM round_contestants WHERE round_id=$1 AND contestant_id=$2`,
+      [roundId, id]
+    );
+
+    // delete contestant
+    await client.query(
+      `DELETE FROM contestants WHERE id=$1 AND show_id=$2`,
+      [id, showId]
+    );
+  }
+}
+
+async function updatePollMeta(client, showId, roundId, poll) {
+  if (!poll) return;
+
+  const {
+    title,
+    description,
+    vote_mode,
+    counter_type,
+    start_time,
+    end_time
+  } = poll;
+
+  // update show partial
+  if (title !== undefined || description !== undefined) {
+    await client.query(
+      `
+      UPDATE shows
+      SET title = COALESCE($1, title),
+          description = COALESCE($2, description)
+      WHERE id = $3
+      `,
+      [title || null, description || null, showId]
+    );
+  }
+
+  // update round partial
+  if (
+    vote_mode !== undefined ||
+    counter_type !== undefined ||
+    start_time !== undefined ||
+    end_time !== undefined
+  ) {
+    await client.query(
+      `
+      UPDATE rounds
+      SET vote_mode = COALESCE($1, vote_mode),
+          counter_type = COALESCE($2, counter_type),
+          start_time = COALESCE($3::timestamptz, start_time),
+          end_time = COALESCE($4::timestamptz, end_time)
+      WHERE id = $5
+      `,
+      [
+        vote_mode || null,
+        counter_type || null,
+        start_time || null,
+        end_time || null,
+        roundId
+      ]
+    );
+  }
+}
+
 
 module.exports = {
   createRoomWithContestants,
@@ -327,4 +473,6 @@ module.exports = {
   getRoomsWithContestants,
   getRoomBySlug,
   deleteRoom,
+  applyContestantPatch,
+  updatePollMeta,
 };

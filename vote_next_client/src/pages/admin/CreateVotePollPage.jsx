@@ -1,261 +1,282 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { toast } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
-import { createVotePoll } from '../../services/api';
-import { createRoom, updateRoom } from "../../api/rooms.api";
-import Navbar from '../../components/layout/Navbar';
-import './CreateVotePoll.css';
+import React, { useEffect, useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import { toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+import Navbar from "../../components/layout/Navbar";
+import "./CreateVotePoll.css";
+
+import { createVotePoll } from "../../services/api";
 import { uploadImageToCloudinary } from "../../services/cloudinaryUpload.service";
+import { patchRoom } from "../../api/rooms.api";
 
 const CreateVotePoll = () => {
   const location = useLocation();
-  const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    modeType: 'online',
-    counterType: 'auto',
-    startDate: '',
-    endDate: '',
-    startTime: '00:00',
-    endTime: '00:00',
-    choices: [
-      { id: 1, label: '', description: '', image: null, imagePreview: null }
-    ]
-  });
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
-
-  const handleChoiceChange = (index, e) => {
-    const { name, value } = e.target;
-    const updatedChoices = [...formData.choices];
-    updatedChoices[index] = {
-      ...updatedChoices[index],
-      [name]: value
-    };
-    setFormData(prev => ({
-      ...prev,
-      choices: updatedChoices
-    }));
-  };
-
-  const handleImageChange = (index, e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const updatedChoices = [...formData.choices];
-        updatedChoices[index] = {
-          ...updatedChoices[index],
-          image: file,
-          imagePreview: reader.result
-        };
-        setFormData(prev => ({
-          ...prev,
-          choices: updatedChoices
-        }));
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const addChoice = () => {
-    setFormData(prev => ({
-      ...prev,
-      choices: [
-        ...prev.choices,
-        { id: Date.now(), label: '', description: '', image: null, imagePreview: null }
-      ]
-    }));
-  };
-
-  const removeChoice = (index) => {
-    const updatedChoices = formData.choices.filter((_, i) => i !== index);
-    setFormData(prev => ({
-      ...prev,
-      choices: updatedChoices
-    }));
-  };
-
   const navigate = useNavigate();
+
   const [editingId, setEditingId] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // original for diff
+  const [originalChoices, setOriginalChoices] = useState([]);
+
+  const [formData, setFormData] = useState({
+    title: "",
+    description: "",
+    modeType: "online",
+    counterType: "auto",
+    startDate: "",
+    endDate: "",
+    startTime: "00:00",
+    endTime: "00:00",
+    choices: [{ id: 1, label: "", description: "", image: null, imagePreview: null }],
+  });
 
   const handleLogout = () => {
     localStorage.removeItem("votenext_admin");
     navigate("/admin/login");
   };
 
-  const buildImageUrl = (path) => {
-    if (!path) return null;
-    if (/^https?:\/\//i.test(path)) return path;
-    const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
-    const origin = apiBase.replace(/\/api\/?$/, '');
-    return `${origin}${path}`;
+  const buildImageUrl = (url) => {
+    if (!url) return null;
+    if (/^https?:\/\//i.test(url)) return url;
+    const apiBase = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
+    return apiBase.replace(/\/api\/?$/, "") + url;
   };
+
+  const fixTZ = (date, time) => {
+    if (!date || !time) return null;
+    const t = time.includes(":") ? time : `${time}:00`;
+    return `${date} ${t}+07`;
+  };
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((p) => ({ ...p, [name]: value }));
+  };
+
+  const handleChoiceChange = (index, e) => {
+    const { name, value } = e.target;
+    const arr = [...formData.choices];
+    arr[index][name] = value;
+    setFormData((p) => ({ ...p, choices: arr }));
+  };
+
+  const handleImageChange = (idx, e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const arr = [...formData.choices];
+      arr[idx].image = file;
+      arr[idx].imagePreview = reader.result;
+      setFormData((p) => ({ ...p, choices: arr }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const addChoice = () => {
+    setFormData((p) => ({
+      ...p,
+      choices: [
+        ...p.choices,
+        { id: Date.now(), label: "", description: "", image: null, imagePreview: null },
+      ],
+    }));
+  };
+
+  const removeChoice = (index) => {
+    const arr = formData.choices.filter((_, i) => i !== index);
+    setFormData((p) => ({ ...p, choices: arr }));
+  };
+
+  function buildContestantPatch(form, original) {
+    const patch = { add: [], update: [], remove: [] };
+    const map = new Map(original.map((c) => [c.id, c]));
+
+    for (let i = 0; i < form.length; i++) {
+      const f = form[i];
+      const o = map.get(f.id);
+
+      if (!o) {
+        patch.add.push({
+          stage_name: f.label,
+          description: f.description || "",
+          image_url: f.imageUrl || null,
+          order_number: i + 1,
+        });
+        continue;
+      }
+
+      const diff = {};
+      let changed = false;
+
+      if (f.label !== o.stage_name) {
+        diff.stage_name = f.label;
+        changed = true;
+      }
+      if (f.description !== o.description) {
+        diff.description = f.description;
+        changed = true;
+      }
+      if (f.imageUrl !== o.image_url) {
+        diff.image_url = f.imageUrl;
+        changed = true;
+      }
+      const expected = i + 1;
+      if (expected !== o.order_number) {
+        diff.order_number = expected;
+        changed = true;
+      }
+
+      if (changed) {
+        diff.id = f.id;
+        patch.update.push(diff);
+      }
+
+      map.delete(f.id);
+    }
+
+    for (const [id] of map) {
+      patch.remove.push(id);
+    }
+
+    return patch;
+  }
 
   useEffect(() => {
     const room = location.state?.room;
     if (!room) return;
 
-    // FIX: normalize structure (Dashboard vs Preview)
-    const raw = room?.data || room;  // Dashboard → room | Preview → room.data
+    const raw = room.data || room;
 
     const toDate = (iso) => {
-      if (!iso) return '';
+      if (!iso) return "";
       const d = new Date(iso);
-      const pad = (n) => String(n).padStart(2, '0');
-      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+        d.getDate()
+      ).padStart(2, "0")}`;
     };
+
     const toTime = (iso) => {
-      if (!iso) return '00:00';
+      if (!iso) return "00:00";
       const d = new Date(iso);
-      const pad = (n) => String(n).padStart(2, '0');
-      return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
     };
 
-    const modeType =
-      raw.vote_mode === 'hybrid'
-        ? 'online+remote'
-        : raw.vote_mode || 'online';
+    const modeType = raw.vote_mode === "hybrid" ? "online+remote" : raw.vote_mode || "online";
 
-    const mappedChoices =
-      (raw.contestants || [])
-        .sort((a, b) => (a.order_number || 0) - (b.order_number || 0))
-        .map((c, idx) => ({
-          id: c.id || idx + 1,
-          label: c.stage_name || '',
-          description: c.description || '',
-          image: null,
-          imagePreview: buildImageUrl(c.image_url),
-          imageUrl: c.image_url || '',
-        }));
+    const mapped = (raw.contestants || [])
+      .sort((a, b) => (a.order_number || 0) - (b.order_number || 0))
+      .map((c) => ({
+        id: c.id,
+        label: c.stage_name,
+        description: c.description,
+        image: null,
+        imagePreview: buildImageUrl(c.image_url),
+        imageUrl: c.image_url,
+      }));
+
+    setOriginalChoices(mapped);
+    setEditingId(raw.round_id || raw.id);
 
     setFormData({
-      title: raw.title || '',
-      description: raw.description || '',
+      title: raw.title || "",
+      description: raw.description || "",
       modeType,
-      counterType: raw.start_time || raw.end_time ? 'auto' : 'manual',
+      counterType: raw.start_time || raw.end_time ? "auto" : "manual",
       startDate: toDate(raw.start_time),
       endDate: toDate(raw.end_time),
       startTime: toTime(raw.start_time),
       endTime: toTime(raw.end_time),
-      choices: mappedChoices.length > 0
-        ? mappedChoices
-        : [{ id: 1, label: '', description: '', image: null, imagePreview: null }],
+      choices: mapped.length ? mapped : [{ id: 1, label: "", description: "", image: null }],
     });
-
-    // FIX: editingId fallback
-    setEditingId(raw.round_id || raw.id || null);
-
-    // FIX: dependency ให้ trigger เมื่อ room เปลี่ยน
   }, [location.state?.room]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!formData.title.trim()) {
-      toast.error('กรุณาใส่ชื่อโพล');
+      toast.error("กรุณาใส่ชื่อโพล");
       return;
     }
 
-    const validChoices = formData.choices.filter(choice => choice.label.trim() !== '');
-
-    if (validChoices.length < 2) {
-      toast.error('กรุณาเพิ่มตัวเลือกอย่างน้อย 2 ตัวเลือก');
-      return;
-    }
-
-    const hasIncompleteChoices = validChoices.some(choice => !choice.label.trim());
-    if (hasIncompleteChoices) {
-      toast.error('กรุณากรอกชื่อตัวเลือกให้ครบทุกช่อง');
+    const valid = formData.choices.filter((c) => c.label.trim() !== "");
+    if (valid.length < 2) {
+      toast.error("กรุณาเพิ่มตัวเลือกอย่างน้อย 2 ตัวเลือก");
       return;
     }
 
     try {
       setIsSubmitting(true);
 
-      const uploadedChoices = await Promise.all(
-        formData.choices.map(async (choice, index) => {
-          let imageUrl = choice.imageUrl || null;
-
-          if (choice.image) {
-            const uploadResult = await uploadImageToCloudinary(
-              choice.image,
-              "contestants/temp"
-            );
-            imageUrl = uploadResult.imageUrl;
+      const uploaded = await Promise.all(
+        formData.choices.map(async (c, i) => {
+          let imageUrl = c.imageUrl || null;
+          if (c.image) {
+            const up = await uploadImageToCloudinary(c.image, "contestants/temp");
+            imageUrl = up.imageUrl;
           }
-
           return {
-            stage_name: choice.label,
-            description: choice.description,
+            id: c.id,
+            stage_name: c.label,
+            description: c.description,
             image_url: imageUrl,
-            order_number: index + 1,
+            order_number: i + 1,
           };
         })
       );
 
-      // convert date + time → postgres friendly timestamptz
-      const fixTZ = (date, time) => {
-        if (!date || !time) return null;
-        const timeWithSeconds = time.includes(':') ? time : `${time}:00`;
-        return `${date} ${timeWithSeconds}+07`;
-      };
-
-      const submitData = {
-        title: formData.title,
-        description: formData.description,
-        vote_mode:
-          formData.modeType === "online+remote"
-            ? "hybrid"
-            : formData.modeType,
-        counter_type: formData.counterType,
-        contestants: uploadedChoices,
-      };
-
-      // attach start/end only if auto mode
-      if (formData.counterType === "auto") {
-        submitData.start_time = fixTZ(formData.startDate, formData.startTime);
-        submitData.end_time = fixTZ(formData.endDate, formData.endTime);
-      }
-
       if (editingId) {
-        await updateRoom(editingId, submitData);
-        toast.success("อัปเดตโพลสำเร็จ!");
-      } else {
-        const result = await createVotePoll(submitData);
-        toast.success("สร้างโพลสำเร็จ!");
-        const show = result.data.show;
-        const round = result.data.round;
-        const contestants = result.data.contestants;
-
-        navigate(`/admin/preview/${show.id}`, {
-          state: {
-            room: {
-              data: {
-                show,
-                round,
-                contestants,
-              }
-            }
+        const payload = {
+          poll: {
+            title: formData.title,
+            description: formData.description,
+            vote_mode: formData.modeType === "online+remote" ? "hybrid" : formData.modeType,
+            counter_type: formData.counterType,
           },
+        };
+
+        if (formData.counterType === "auto") {
+          payload.poll.start_time = fixTZ(formData.startDate, formData.startTime);
+          payload.poll.end_time = fixTZ(formData.endDate, formData.endTime);
+        }
+
+        const patch = buildContestantPatch(uploaded, originalChoices);
+        if (patch.add.length || patch.update.length || patch.remove.length) {
+          payload.contestants = patch;
+        }
+
+        await patchRoom(editingId, payload);
+      
+        console.log("PATCH payload =", JSON.stringify(payload, null, 2));
+        toast.success("Updated poll successfully!");
+        
+      } else {
+        const submit = {
+          title: formData.title,
+          description: formData.description,
+          vote_mode: formData.modeType === "online+remote" ? "hybrid" : formData.modeType,
+          counter_type: formData.counterType,
+          contestants: uploaded,
+        };
+        if (formData.counterType === "auto") {
+          submit.start_time = fixTZ(formData.startDate, formData.startTime);
+          submit.end_time = fixTZ(formData.endDate, formData.endTime);
+        }
+        
+        const r = await createVotePoll(submit);
+        toast.success("สร้างโพลสำเร็จ!");
+
+        navigate(`/admin/preview/${r.data.round.id}`, {
+          state: { room: { data: r.data } },
         });
       }
-
     } catch (err) {
       console.error(err);
-      toast.error("อัปโหลดหรือบันทึกล้มเหลว");
+      toast.error("Submit failed");
     } finally {
       setIsSubmitting(false);
     }
-
   };
 
   return (
