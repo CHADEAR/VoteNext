@@ -4,7 +4,7 @@ import { useParams } from 'react-router-dom';
 import Navbar from '../../components/layout/Navbar';
 
 const VoteSuccessPage = () => {
-  const { public_slug } = useParams();
+  const { publicSlug } = useParams();
 
   return (
     <div className="vote-success-container">
@@ -21,7 +21,7 @@ const VoteSuccessPage = () => {
         <p>Your vote has been successfully recorded.</p>
         
         <div className="vote-details">
-          <p>Vote ID: {public_slug}</p>
+          <p>Vote ID: {publicSlug}</p>
           <p>Date: {new Date().toLocaleDateString()}</p>
         </div>
         

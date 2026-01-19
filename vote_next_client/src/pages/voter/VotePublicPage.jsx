@@ -39,7 +39,7 @@ export default function VotePublicPage() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
-  const EMAIL_KEY = "vote_next_email";
+  const EMAIL_KEY = `vote_next_email_${publicSlug}`;
   const email = localStorage.getItem(EMAIL_KEY);
 
   useEffect(() => {

@@ -3,10 +3,11 @@ import React, { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import Navbar from '../../components/layout/Navbar';
 
-const EMAIL_KEY = "vote_next_email";
+
 
 export default function VoteEnterEmailPage() {
-  const { public_slug } = useParams();
+  const { publicSlug } = useParams();
+  const EMAIL_KEY = `vote_next_email_${publicSlug}`;
   const navigate = useNavigate();
 
   const [email, setEmail] = useState("");
@@ -21,7 +22,7 @@ export default function VoteEnterEmailPage() {
     }
 
     localStorage.setItem(EMAIL_KEY, email);
-    navigate(`/vote/${public_slug}`);
+    navigate(`/vote/${publicSlug}`);
   };
 
   return (

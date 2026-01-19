@@ -220,6 +220,7 @@ const CreateVotePoll = () => {
             id: c.id,
             stage_name: c.label,
             description: c.description,
+            label: c.label, 
             image_url: imageUrl,
             order_number: i + 1,
           };
