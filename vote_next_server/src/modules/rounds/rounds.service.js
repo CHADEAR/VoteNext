@@ -159,10 +159,23 @@ async function getRound(roundId) {
         c.id, 
         c.stage_name as name, 
         c.image_url,
-        COALESCE(ov.count, 0) as online_votes,
-        COALESCE(rv.count, 0) as remote_votes,
-        COALESCE(js.score, 0) as judge_score,
-        (COALESCE(ov.count, 0) + COALESCE(rv.count, 0) + COALESCE(js.score, 0)) as total_score
+        rc.rank,
+        CASE 
+          WHEN rc.computed_at IS NOT NULL THEN rc.online_votes
+          ELSE COALESCE(ov.count, 0)
+        END as online_votes,
+        CASE 
+          WHEN rc.computed_at IS NOT NULL THEN rc.remote_votes
+          ELSE COALESCE(rv.count, 0)
+        END as remote_votes,
+        CASE 
+          WHEN rc.computed_at IS NOT NULL THEN rc.judge_score
+          ELSE COALESCE(js.score, 0)
+        END as judge_score,
+        CASE 
+          WHEN rc.computed_at IS NOT NULL THEN rc.total_score
+          ELSE (COALESCE(ov.count, 0) + COALESCE(rv.count, 0) + COALESCE(js.score, 0))
+        END as total_score
       FROM contestants c
       JOIN round_contestants rc ON c.id = rc.contestant_id
       LEFT JOIN online_votes ov ON c.id = ov.contestant_id
@@ -178,11 +191,11 @@ async function getRound(roundId) {
       id: c.id,
       name: c.name,
       image_url: c.image_url,
-      score: c.score || 0,
       rank: c.rank,
-      online: c.online_votes,
-      remote: c.remote_votes,
-      judge: c.judge_score
+      online_votes: Number(c.online_votes) || 0,
+      remote_votes: Number(c.remote_votes) || 0,
+      judge_score: Number(c.judge_score) || 0,
+      total_score: Number(c.total_score) || 0
     }));
 
     return round;
@@ -363,11 +376,11 @@ async function createNextRound({
 
     // 3) ดึงผลคะแนน
     const scores = await client.query(
-      `SELECT contestant_id, score
+      `SELECT contestant_id, total_score, rank
        FROM round_contestants
        WHERE round_id = $1
          AND computed_at IS NOT NULL
-       ORDER BY score DESC, contestant_id`,
+       ORDER BY rank ASC, total_score DESC, contestant_id`,
       [fromRoundId]
     );
     if (scores.rowCount === 0)
@@ -484,27 +497,47 @@ async function computeRoundResults(roundId, judgeScores = []) {
       throw new Error('Show is already finalized');
     }
 
-    // Get all contestants in this round with their online votes
+    // Get all contestants with online/remote/judge scores
     const result = await client.query(
-      `WITH vote_counts AS (
+      `WITH online_counts AS (
          SELECT 
            contestant_id,
            COUNT(*) as online_votes
          FROM online_votes
          WHERE round_id = $1
          GROUP BY contestant_id
+       ),
+       remote_counts AS (
+         SELECT 
+           contestant_id,
+           COUNT(*) as remote_votes
+         FROM remote_votes
+         WHERE round_id = $1
+         GROUP BY contestant_id
+       ),
+       judge_scores AS (
+         SELECT 
+           contestant_id,
+           COALESCE(score, 0) as judge_score
+         FROM judge_scores
+         WHERE round_id = $1
        )
        SELECT 
          rc.contestant_id,
          c.stage_name as name,
          c.image_url,
-         COALESCE(vc.online_votes, 0) as online_votes
+         COALESCE(oc.online_votes, 0) as online_votes,
+         COALESCE(rcount.remote_votes, 0) as remote_votes,
+         COALESCE(js.judge_score, 0) as judge_score,
+         (COALESCE(oc.online_votes, 0) + COALESCE(rcount.remote_votes, 0) + COALESCE(js.judge_score, 0)) as total_score
        FROM round_contestants rc
        JOIN contestants c ON rc.contestant_id = c.id
-       LEFT JOIN vote_counts vc ON vc.contestant_id = rc.contestant_id
+       LEFT JOIN online_counts oc ON oc.contestant_id = rc.contestant_id
+       LEFT JOIN remote_counts rcount ON rcount.contestant_id = rc.contestant_id
+       LEFT JOIN judge_scores js ON js.contestant_id = rc.contestant_id
        WHERE rc.round_id = $1
        ORDER BY 
-         online_votes DESC, 
+         total_score DESC, 
          c.stage_name`,
       [roundId]
     );
@@ -512,30 +545,41 @@ async function computeRoundResults(roundId, judgeScores = []) {
     // Update the round_contestants with the computed scores and ranks
     // Handle ties by giving the same rank to contestants with the same score
     let currentRank = 1;
-    let previousVotes = null;
+    let previousTotal = null;
     let rankToUse = 1;
     
     for (let i = 0; i < result.rows.length; i++) {
       const contestant = result.rows[i];
       
       // If this contestant has the same score as the previous one, they get the same rank
-      if (previousVotes !== null && contestant.online_votes === previousVotes) {
+      if (previousTotal !== null && contestant.total_score === previousTotal) {
         // Same rank as previous contestant
       } else {
         rankToUse = currentRank;
       }
-      
+
       await client.query(
         `UPDATE round_contestants 
-         SET score = $1, 
-             rank = $2,
+         SET online_votes = $1,
+             remote_votes = $2,
+             judge_score = $3,
+             total_score = $4,
+             rank = $5,
              computed_at = NOW()
-         WHERE round_id = $3 AND contestant_id = $4`,
-        [contestant.online_votes, rankToUse, roundId, contestant.contestant_id]
+         WHERE round_id = $6 AND contestant_id = $7`,
+        [
+          contestant.online_votes,
+          contestant.remote_votes,
+          contestant.judge_score,
+          contestant.total_score,
+          rankToUse,
+          roundId,
+          contestant.contestant_id
+        ]
       );
-      
+
       // Update previous values for next iteration
-      previousVotes = contestant.online_votes;
+      previousTotal = contestant.total_score;
       currentRank++;
     }
 
@@ -547,12 +591,15 @@ async function computeRoundResults(roundId, judgeScores = []) {
          rc.contestant_id as id,
          c.stage_name as name,
          c.image_url,
-         rc.score as online_votes,
+         rc.online_votes,
+         rc.remote_votes,
+         rc.judge_score,
+         rc.total_score,
          rc.rank
        FROM round_contestants rc
        JOIN contestants c ON rc.contestant_id = c.id
        WHERE rc.round_id = $1
-       ORDER BY rc.rank, c.stage_name`,
+       ORDER BY rc.rank, rc.total_score DESC, c.stage_name`,
       [roundId]
     );
   

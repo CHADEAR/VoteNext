@@ -47,23 +47,13 @@ export default function AdminRoundResultsPage() {
     loadRound();
   }, [roundId]);
 
-  // Check if results have been computed by looking for rank or score
-  const hasComputed = contestants.some(c => c.rank > 0 || c.score > 0);
-
-  const sortedContestants = Array.isArray(contestants)
-    ? [...contestants]
-        // Sort by score (descending)
-        .sort((a, b) => (b.score || 0) - (a.score || 0))
-        // Only keep top 7
-        .slice(0, 7)
-        // Update ranks to be 1-7
-        .map((contestant, index) => ({
-          ...contestant,
-          rank: index + 1
-        }))
-    : [];
+  // Check if results have been computed (backend-driven)
+  const hasComputed = Boolean(round?.results_computed) || contestants.some(c => c.rank > 0);
 
   const isFinalRound = round?.is_final || false;
+
+  const rankedForModal = [...contestants]
+    .sort((a, b) => (Number(b.total_score) || 0) - (Number(a.total_score) || 0));
 
   // Compute Scores and save to backend
   const handleCompute = async () => {
@@ -82,14 +72,6 @@ export default function AdminRoundResultsPage() {
       
       if (data && Array.isArray(data)) {
         setContestants(data);
-      } else {
-        // If no data returned, update local state
-        const computed = contestants.map(c => ({
-          ...c,
-          judge: Number(judgeScores[c.id] || 0),
-          score: Number(c.online || 0) + Number(c.remote || 0) + Number(judgeScores[c.id] || 0)
-        }));
-        setContestants(computed);
       }
       
       toast.success("Results computed successfully!");
@@ -114,7 +96,7 @@ export default function AdminRoundResultsPage() {
       });
 
       const info = response?.data?.data || response?.data;
-      navigate(`/admin/rounds/${info.round.id}`);
+      navigate(`/`);
       toast.success("Next round created successfully");
 
     } catch (error) {
@@ -152,7 +134,7 @@ export default function AdminRoundResultsPage() {
       <h2 style={{ fontSize:"20px", fontWeight:600 }}>{round?.show_title || 'Loading...'}</h2>
       <div style={{ opacity:0.7, marginTop:4 }}>
         {round?.round_name || 'Loading...'} — {round?.status?.toUpperCase() || 'LOADING'} |
-        {sortedContestants.length} Contestants
+        {contestants.length} Contestants
       </div>
 
       {isLoading && <div style={{ marginTop: 16 }}>Loading...</div>}
@@ -202,7 +184,7 @@ export default function AdminRoundResultsPage() {
         }}>
           {hasComputed ? (
             // Show ranked results after compute
-            sortedContestants.map((c) => {
+            contestants.map((c) => {
               const rankColors = {
                 1: '#FFD700', // Gold
                 2: '#C0C0C0', // Silver
@@ -252,7 +234,7 @@ export default function AdminRoundResultsPage() {
                         color: c.rank <= 7 ? '#4B5563' : '#9CA3AF',
                         marginTop: '2px'
                       }}>
-                        Total Score: <strong>{c.score || 0}</strong> points
+                        Total Score: <strong>{c.total_score ?? 0}</strong> points
                       </div>
                     </div>
                     {c.rank === 1 && (
@@ -281,8 +263,9 @@ export default function AdminRoundResultsPage() {
                     alignItems: 'center'
                   }}>
                     <div style={{ display: 'flex', gap: '16px' }}>
-                      <span>👥 <strong>{c.online_votes || 0}</strong> votes</span>
-                      <span>⭐ <strong>{judgeScores[c.id] || 0}</strong> judge</span>
+                      <span>👥 <strong>{c.online_votes ?? 0}</strong> votes</span>
+                      <span>📡 <strong>{c.remote_votes ?? 0}</strong> remote</span>
+                      <span>⭐ <strong>{c.judge_score ?? 0}</strong> judge</span>
                     </div>
                     {c.rank <= 7 && (
                       <div style={{
@@ -322,6 +305,7 @@ export default function AdminRoundResultsPage() {
                       type="number"
                       placeholder="0"
                       value={judgeScores[c.id] || ""}
+                      disabled={hasComputed}
                       onChange={e =>
                         setJudgeScores({
                           ...judgeScores,
@@ -333,7 +317,8 @@ export default function AdminRoundResultsPage() {
                         padding: '6px 8px',
                         border: '1px solid #D1D5DB',
                         borderRadius: '6px',
-                        textAlign: 'right'
+                        textAlign: 'right',
+                        background: hasComputed ? '#F3F4F6' : '#FFFFFF'
                       }}
                       min="0"
                       step="1"
@@ -348,7 +333,7 @@ export default function AdminRoundResultsPage() {
 
       {showModal && hasComputed && (
         <AdvancedModal
-          ranked={sortedContestants.map(c => ({ ...c, final:c.score }))}
+          ranked={rankedForModal.map(c => ({ ...c, final: c.total_score }))}
           onClose={() => setShowModal(false)}
           onSubmit={isFinalRound ? handleFinalizeShow : handleCreateNextRound}
           isFinalRound={isFinalRound}
