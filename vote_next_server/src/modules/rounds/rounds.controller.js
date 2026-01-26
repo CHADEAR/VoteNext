@@ -2,6 +2,7 @@ const {
   startRound,
   closeRound,
   getRound,
+  finalizeShow,
 } = require("./rounds.service");
 
 /**
@@ -35,6 +36,37 @@ exports.stop = async (req, res) => {
 };
 
 const roundsService = require("./rounds.service");
+
+/**
+ * POST /api/rounds/:roundId/finalize
+ * Finalize the show with the final lineup
+ */
+exports.finalize = async (req, res) => {
+  try {
+    const { roundId } = req.params;
+    const { debut, target } = req.body;
+
+    if (!debut || !Array.isArray(debut) || debut.length === 0) {
+      throw new Error('Debut lineup is required');
+    }
+
+    if (target !== undefined && (typeof target !== 'number' || target < 0)) {
+      throw new Error('Target must be a non-negative number');
+    }
+
+    const result = await finalizeShow(roundId, debut, target);
+    
+    res.json({ 
+      success: true, 
+      data: {
+        lineup: result.final_lineup,
+        target: result.target_debut || target || debut.length
+      }
+    });
+  } catch (err) {
+    res.status(400).json({ success: false, message: err.message });
+  }
+};
 
 exports.createFirstRound = async (req, res) => {
   try {
@@ -72,9 +104,12 @@ exports.createNextRound = async (req, res) => {
 exports.computeResults = async (req, res) => {
   try {
     const { roundId } = req.params;
-    const data = await roundsService.computeRoundResults(roundId);
-    res.json({ success: true, data });
+    const { judgeScores = [] } = req.body;
+    
+    const results = await roundsService.computeRoundResults(roundId, judgeScores);
+    res.json({ success: true, data: results });
   } catch (err) {
+    console.error('Error in computeResults:', err);
     res.status(400).json({ success: false, message: err.message });
   }
 };

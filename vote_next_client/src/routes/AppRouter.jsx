@@ -25,7 +25,7 @@ export default function AppRouter() {
           path="/admin/preview/:pollId"
           element={<AdminPreviewVotePollPage />}
         />
-        <Route path="/admin/round-results" element={<AdminRoundResultsPage />} />
+        <Route path="/admin/rounds/:roundId" element={<AdminRoundResultsPage />} />
 
         {/* ================= Voter ================= */}
         <Route

@@ -117,7 +117,7 @@ export default function AdminPreviewVotePollPage() {
 
         <button
           className="btn-primary"
-          onClick={() => navigate(`/admin/round-results`)}
+          onClick={() => navigate(`/admin/rounds/${round.id}`)}
         >
           view result
         </button>

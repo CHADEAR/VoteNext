@@ -101,21 +101,94 @@ async function closeRound(roundId, reason) {
 }
 
 /**
- * โหลด round พร้อม ensure
+ * Load round with contestants and their scores
  */
 async function getRound(roundId) {
-  const result = await pool.query(
-    `SELECT id, status, start_time, end_time   -- <== เพิ่ม start_time
-     FROM rounds
-     WHERE id = $1`,
-    [roundId]
-  );
+  const client = await pool.connect();
+  try {
+    // Get basic round info
+    const roundResult = await client.query(
+      `SELECT 
+          r.*, 
+          s.title as show_title,
+          EXISTS (
+            SELECT 1 FROM round_contestants 
+            WHERE round_id = r.id AND computed_at IS NOT NULL
+            LIMIT 1
+          ) as results_computed
+       FROM rounds r
+       JOIN shows s ON r.show_id = s.id
+       WHERE r.id = $1`,
+      [roundId]
+    );
 
-  if (result.rowCount === 0) {
-    throw new Error("Round not found");
+    if (roundResult.rowCount === 0) {
+      throw new Error("Round not found");
+    }
+
+    const round = await ensureRoundIsUpToDate(roundResult.rows[0]);
+
+    // Get contestants with their scores
+    const contestantsResult = await client.query(
+      `WITH 
+      online_votes AS (
+        SELECT 
+          contestant_id,
+          COUNT(*) as count
+        FROM online_votes
+        WHERE round_id = $1
+        GROUP BY contestant_id
+      ),
+      remote_votes AS (
+        SELECT 
+          contestant_id,
+          COUNT(*) as count
+        FROM remote_votes
+        WHERE round_id = $1
+        GROUP BY contestant_id
+      ),
+      judge_scores AS (
+        SELECT 
+          contestant_id,
+          COALESCE(score, 0) as score
+        FROM judge_scores
+        WHERE round_id = $1
+      )
+      
+      SELECT 
+        c.id, 
+        c.stage_name as name, 
+        c.image_url,
+        COALESCE(ov.count, 0) as online_votes,
+        COALESCE(rv.count, 0) as remote_votes,
+        COALESCE(js.score, 0) as judge_score,
+        (COALESCE(ov.count, 0) + COALESCE(rv.count, 0) + COALESCE(js.score, 0)) as total_score
+      FROM contestants c
+      JOIN round_contestants rc ON c.id = rc.contestant_id
+      LEFT JOIN online_votes ov ON c.id = ov.contestant_id
+      LEFT JOIN remote_votes rv ON c.id = rv.contestant_id
+      LEFT JOIN judge_scores js ON c.id = js.contestant_id
+      WHERE rc.round_id = $1
+      ORDER BY total_score DESC, c.stage_name ASC`,
+      [roundId]
+    );
+
+    // Add contestants to round object
+    round.contestants = contestantsResult.rows.map(c => ({
+      id: c.id,
+      name: c.name,
+      image_url: c.image_url,
+      score: c.score || 0,
+      rank: c.rank,
+      online: c.online_votes,
+      remote: c.remote_votes,
+      judge: c.judge_score
+    }));
+
+    return round;
+  } finally {
+    client.release();
   }
-
-  return ensureRoundIsUpToDate(result.rows[0]);
 }
 
 /**
@@ -290,10 +363,11 @@ async function createNextRound({
 
     // 3) ดึงผลคะแนน
     const scores = await client.query(
-      `SELECT contestant_id, final_score
-       FROM round_results
+      `SELECT contestant_id, score
+       FROM round_contestants
        WHERE round_id = $1
-       ORDER BY final_score DESC`,
+         AND computed_at IS NOT NULL
+       ORDER BY score DESC, contestant_id`,
       [fromRoundId]
     );
     if (scores.rowCount === 0)
@@ -333,6 +407,12 @@ async function createNextRound({
     );
     const newRound = nr.rows[0];
 
+    // ✅ set public_slug = round.id (match first round behavior)
+    await client.query(
+      `UPDATE rounds SET public_slug = id::text WHERE id = $1`,
+      [newRound.id]
+    );
+
     // 6) ผูก contestants
     for (const cid of selected) {
       await client.query(
@@ -352,76 +432,232 @@ async function createNextRound({
   }
 }
 
-async function computeRoundResults(roundId) {
+async function computeRoundResults(roundId, judgeScores = []) {
   const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
 
-    // 1) โหลด round + lock
-    const roundRes = await client.query(
-      `SELECT id, status, show_id
-       FROM rounds
-       WHERE id = $1
+  try {
+    await client.query('BEGIN');
+
+    // Check if round exists and is closed
+    const roundResult = await client.query(
+      `SELECT id, status, show_id 
+       FROM rounds 
+       WHERE id = $1 
        FOR UPDATE`,
       [roundId]
     );
 
-    if (roundRes.rowCount === 0) {
-      throw new Error("Round not found");
+    if (roundResult.rows.length === 0) {
+      throw new Error('Round not found');
     }
 
-    const round = roundRes.rows[0];
+    const round = roundResult.rows[0];
 
-    if (round.status !== "closed") {
-      throw new Error("Round must be closed before computing results");
+    if (round.status !== 'closed') {
+      throw new Error('Cannot compute results for a round that is not closed');
     }
 
-    // 2) กัน compute ซ้ำ
-    const exists = await client.query(
-      `SELECT 1 FROM round_results WHERE round_id = $1`,
+    // Save judge scores if provided
+    if (Array.isArray(judgeScores) && judgeScores.length > 0) {
+      for (const { contestantId, score } of judgeScores) {
+        await client.query(
+          `INSERT INTO judge_scores (round_id, contestant_id, score)
+           VALUES ($1, $2, $3)
+           ON CONFLICT (round_id, contestant_id) 
+           DO UPDATE SET score = EXCLUDED.score`,
+          [roundId, contestantId, score]
+        );
+      }
+    }
+
+    // Get show to check if it's already finalized
+    const showResult = await client.query(
+      `SELECT id, finalized FROM shows WHERE id = $1 FOR UPDATE`,
+      [round.show_id]
+    );
+
+    if (showResult.rows.length === 0) {
+      throw new Error('Show not found');
+    }
+
+    if (showResult.rows[0].finalized) {
+      throw new Error('Show is already finalized');
+    }
+
+    // Get all contestants in this round with their online votes
+    const result = await client.query(
+      `WITH vote_counts AS (
+         SELECT 
+           contestant_id,
+           COUNT(*) as online_votes
+         FROM online_votes
+         WHERE round_id = $1
+         GROUP BY contestant_id
+       )
+       SELECT 
+         rc.contestant_id,
+         c.stage_name as name,
+         c.image_url,
+         COALESCE(vc.online_votes, 0) as online_votes
+       FROM round_contestants rc
+       JOIN contestants c ON rc.contestant_id = c.id
+       LEFT JOIN vote_counts vc ON vc.contestant_id = rc.contestant_id
+       WHERE rc.round_id = $1
+       ORDER BY 
+         online_votes DESC, 
+         c.stage_name`,
       [roundId]
     );
-    if (exists.rowCount > 0) {
-      throw new Error("Round results already computed");
+
+    // Update the round_contestants with the computed scores and ranks
+    // Handle ties by giving the same rank to contestants with the same score
+    let currentRank = 1;
+    let previousVotes = null;
+    let rankToUse = 1;
+    
+    for (let i = 0; i < result.rows.length; i++) {
+      const contestant = result.rows[i];
+      
+      // If this contestant has the same score as the previous one, they get the same rank
+      if (previousVotes !== null && contestant.online_votes === previousVotes) {
+        // Same rank as previous contestant
+      } else {
+        rankToUse = currentRank;
+      }
+      
+      await client.query(
+        `UPDATE round_contestants 
+         SET score = $1, 
+             rank = $2,
+             computed_at = NOW()
+         WHERE round_id = $3 AND contestant_id = $4`,
+        [contestant.online_votes, rankToUse, roundId, contestant.contestant_id]
+      );
+      
+      // Update previous values for next iteration
+      previousVotes = contestant.online_votes;
+      currentRank++;
     }
 
-    // 3) คำนวณผลจาก online_votes
-    const insertRes = await client.query(
-      `
-  INSERT INTO round_results (
-    round_id,
-    contestant_id,
-    online_raw,
-    final_score
-  )
-  SELECT
-    rc.round_id,
-    rc.contestant_id,
-    COUNT(ov.id) AS online_raw,
-    COUNT(ov.id) AS final_score
-  FROM round_contestants rc
-  LEFT JOIN online_votes ov
-    ON ov.contestant_id = rc.contestant_id
-   AND ov.round_id = rc.round_id
-  WHERE rc.round_id = $1
-  GROUP BY rc.round_id, rc.contestant_id
-  RETURNING *
-  `,
-      [roundId] // ✅ ส่งตัวเดียว
+    await client.query('COMMIT');
+  
+    // Return the results with the computed ranks
+    const finalResults = await client.query(
+      `SELECT 
+         rc.contestant_id as id,
+         c.stage_name as name,
+         c.image_url,
+         rc.score as online_votes,
+         rc.rank
+       FROM round_contestants rc
+       JOIN contestants c ON rc.contestant_id = c.id
+       WHERE rc.round_id = $1
+       ORDER BY rc.rank, c.stage_name`,
+      [roundId]
     );
-
-    await client.query("COMMIT");
-
-    return insertRes.rows;
+  
+    return finalResults.rows;
   } catch (err) {
-    await client.query("ROLLBACK");
+    await client.query('ROLLBACK');
     throw err;
   } finally {
     client.release();
   }
 }
 
+/**
+ * Finalize the show with the final lineup
+ * @param {string} roundId - The ID of the final round
+ * @param {string[]} lineup - Array of contestant IDs in final lineup
+ * @param {number} target - Target number of contestants to debut
+ * @returns {Promise<Object>} The updated show with final lineup
+ */
+async function finalizeShow(roundId, lineup, target) {
+  const client = await pool.connect();
+  
+  try {
+    await client.query('BEGIN');
 
+    // Get the round with show_id
+    const roundResult = await client.query(
+      `SELECT show_id, status FROM rounds WHERE id = $1 FOR UPDATE`,
+      [roundId]
+    );
+
+    if (roundResult.rows.length === 0) {
+      throw new Error('Round not found');
+    }
+
+    const round = roundResult.rows[0];
+
+    // Verify round is closed and computed
+    if (round.status !== 'closed') {
+      throw new Error('Cannot finalize show: round is not closed');
+    }
+
+    // Verify show is not already finalized
+    const showResult = await client.query(
+      `SELECT id, finalized FROM shows WHERE id = $1 FOR UPDATE`,
+      [round.show_id]
+    );
+
+    if (showResult.rows.length === 0) {
+      throw new Error('Show not found');
+    }
+
+    const show = showResult.rows[0];
+
+    if (show.finalized) {
+      throw new Error('Show is already finalized');
+    }
+
+    // Verify all contestants in lineup exist and are in the round
+    if (lineup && lineup.length > 0) {
+      const contestantResult = await client.query(
+        `SELECT id FROM contestants WHERE id = ANY($1::uuid[])`,
+        [lineup]
+      );
+      
+      if (contestantResult.rows.length !== lineup.length) {
+        throw new Error('One or more contestants not found');
+      }
+
+      // Verify contestants are in the round
+      const roundContestantsResult = await client.query(
+        `SELECT contestant_id 
+         FROM round_contestants 
+         WHERE round_id = $1 AND contestant_id = ANY($2::uuid[])`,
+        [roundId, lineup]
+      );
+
+      if (roundContestantsResult.rows.length !== lineup.length) {
+        throw new Error('One or more contestants are not in this round');
+      }
+    }
+
+    // Update show with final lineup and mark as finalized
+    const updateShowResult = await client.query(
+      `UPDATE shows 
+       SET finalized = true, 
+           final_lineup = $1
+       WHERE id = $2
+       RETURNING *`,
+      [lineup, round.show_id]
+    );
+
+    await client.query('COMMIT');
+    
+    return {
+      ...updateShowResult.rows[0],
+      target_debut: target || lineup?.length || 0
+    };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
 
 module.exports = {
   ensureRoundIsUpToDate,
