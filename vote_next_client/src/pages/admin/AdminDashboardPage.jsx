@@ -11,7 +11,6 @@ const MODE_LABEL = {
   all: "All",
   online: "Online",
   remote: "Remote",
-  hybrid: "ทั้ง 2",
 };
 
 export default function AdminDashboardPage() {
@@ -26,6 +25,8 @@ export default function AdminDashboardPage() {
   const [openStatus, setOpenStatus] = useState(false);
   const [openMode, setOpenMode] = useState(false);
   const [shareLink, setShareLink] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
 
   // ✅ ต้องอยู่ระดับ component เพื่อให้เรียกซ้ำได้
   const fetchRooms = async () => {
@@ -46,14 +47,21 @@ export default function AdminDashboardPage() {
   }, []);
 
   const filteredRooms = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
     return rooms.filter((room) => {
       const matchMode =
         modeFilter === "all" || room.vote_mode === modeFilter;
       const matchStatus =
         statusFilter === "all" || room.status === statusFilter;
-      return matchMode && matchStatus;
+      const titleText = String(room.title || "").toLowerCase();
+      const matchSearch = !query || titleText.startsWith(query);
+      return matchMode && matchStatus && matchSearch;
     });
-  }, [rooms, modeFilter, statusFilter]);
+  }, [rooms, modeFilter, statusFilter, searchQuery]);
+
+  const applySearch = () => {
+    setSearchQuery(searchInput);
+  };
 
   const handleShare = (room) => {
     const url =
@@ -126,13 +134,27 @@ export default function AdminDashboardPage() {
       <Navbar showProfile onLogout={handleLogout} />
 
       <main className="dashboard-content">
-        <h1 className="page-title">My Vote Poll</h1>
+        <h1 className="page-title">Vote Poll</h1>
 
         {/* Controls */}
         <div className="controls">
           <div className="search-box">
-            <FaSearch color="#F2E16B" />
-            <input placeholder="search box" />
+            <input
+              placeholder="search box"
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") applySearch();
+              }}
+            />
+             <button
+              type="button"
+              className="search-icon-btn"
+              onClick={applySearch}
+              aria-label="Search"
+            >
+              <FaSearch color="#F2E16B" />
+            </button>
           </div>
 
           <div className="dropdown">

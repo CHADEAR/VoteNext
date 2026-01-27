@@ -9,6 +9,7 @@ import {
   getRound 
 } from "../../api/rounds.api";
 import { toast } from "react-toastify";
+import "./AdminRoundResultsPage.css";
 
 export default function AdminRoundResultsPage() {
   const { roundId } = useParams();
@@ -130,29 +131,21 @@ export default function AdminRoundResultsPage() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background:"#F7F4EF", padding:"24px", fontFamily:"sans-serif" }}>
-      <h2 style={{ fontSize:"20px", fontWeight:600 }}>{round?.show_title || 'Loading...'}</h2>
-      <div style={{ opacity:0.7, marginTop:4 }}>
+    <div className="round-results">
+      <h2 className="round-results__title">{round?.show_title || 'Loading...'}</h2>
+      <div className="round-results__meta">
         {round?.round_name || 'Loading...'} — {round?.status?.toUpperCase() || 'LOADING'} |
         {contestants.length} Contestants
       </div>
 
-      {isLoading && <div style={{ marginTop: 16 }}>Loading...</div>}
+      {isLoading && <div className="round-results__loading">Loading...</div>}
 
       {!isLoading && (
         <>
           {!hasComputed ? (
             <button
               onClick={handleCompute}
-              style={{
-                marginTop:16,
-                padding:"8px 16px",
-                background:"#CDE7FF",
-                borderRadius:8,
-                border:"none",
-                fontWeight:500,
-                cursor:"pointer"
-              }}
+              className="round-results__action round-results__action--compute"
             >
               Compute Results
             </button>
@@ -160,15 +153,9 @@ export default function AdminRoundResultsPage() {
             <button
               onClick={() => setShowModal(true)}
               disabled={isLoading || isFinalizing}
-              style={{
-                marginTop:16,
-                padding:"8px 16px",
-                background: isFinalizing ? "#DDD" : "#B6F3C1",
-                borderRadius:8,
-                border:"none",
-                fontWeight:500,
-                cursor:(isLoading || isFinalizing) ? "not-allowed" : "pointer"
-              }}
+              className={`round-results__action ${
+                isFinalizing ? "round-results__action--disabled" : "round-results__action--next"
+              }`}
             >
               {isFinalRound ? 'Finalize Show' : 'Create Next Round'}
             </button>
@@ -176,12 +163,8 @@ export default function AdminRoundResultsPage() {
         </>
       )}
 
-      <div style={{ marginTop: 24 }}>
-        <div style={{ 
-          display: 'grid', 
-          gap: '12px',
-          marginBottom: '24px'
-        }}>
+      <div className="round-results__section">
+        <div className="round-results__grid">
           {hasComputed ? (
             // Show ranked results after compute
             contestants.map((c) => {
@@ -192,87 +175,63 @@ export default function AdminRoundResultsPage() {
               };
               
               return (
-                <div key={c.id} style={{
-                  background: '#FFF',
-                  borderRadius: '8px',
-                  border: `1px solid ${rankColors[c.rank] || '#E5E7EB'}`,
-                  overflow: 'hidden',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-                }}>
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    padding: '12px 16px',
-                    background: rankColors[c.rank] || (c.rank <= 7 ? '#F9FAFB' : '#FFFFFF'),
-                    borderBottom: '1px solid #E5E7EB'
-                  }}>
-                    <div style={{
-                      width: '32px',
-                      height: '32px',
-                      borderRadius: '50%',
-                      background: rankColors[c.rank] || (c.rank <= 7 ? '#3B82F6' : '#E5E7EB'),
-                      color: c.rank <= 3 ? '#000' : (c.rank <= 7 ? '#FFF' : '#6B7280'),
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      marginRight: '12px',
-                      fontWeight: 'bold',
-                      fontSize: '16px'
-                    }}>
+                <div
+                  key={c.id}
+                  className="rank-card"
+                  style={{ border: `1px solid ${rankColors[c.rank] || '#E5E7EB'}` }}
+                >
+                  <div
+                    className="rank-card__header"
+                    style={{
+                      background: rankColors[c.rank] || (c.rank <= 7 ? '#F9FAFB' : '#FFFFFF')
+                    }}
+                  >
+                    <div
+                      className="rank-badge"
+                      style={{
+                        background: rankColors[c.rank] || (c.rank <= 7 ? '#3B82F6' : '#E5E7EB'),
+                        color: c.rank <= 3 ? '#000' : (c.rank <= 7 ? '#FFF' : '#6B7280')
+                      }}
+                    >
                       {c.rank <= 3 ? ['🥇', '🥈', '🥉'][c.rank - 1] : c.rank}
                     </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ 
-                        fontSize: '16px', 
-                        fontWeight: '600',
-                        color: c.rank <= 7 ? '#1F2937' : '#6B7280'
-                      }}>
+                    <div className="rank-card__body">
+                      <div
+                        className="rank-card__name"
+                        style={{ color: c.rank <= 7 ? '#1F2937' : '#6B7280' }}
+                      >
                         {c.name}
                       </div>
-                      <div style={{ 
-                        fontSize: '14px', 
-                        color: c.rank <= 7 ? '#4B5563' : '#9CA3AF',
-                        marginTop: '2px'
-                      }}>
+                      <div
+                        className="rank-card__score"
+                        style={{ color: c.rank <= 7 ? '#4B5563' : '#9CA3AF' }}
+                      >
                         Total Score: <strong>{c.total_score ?? 0}</strong> points
                       </div>
                     </div>
                     {c.rank === 1 && (
-                      <div style={{
-                        background: 'rgba(255, 215, 0, 0.2)',
-                        color: '#B45309',
-                        padding: '4px 10px',
-                        borderRadius: '12px',
-                        fontSize: '12px',
-                        fontWeight: '600',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px'
-                      }}>
+                      <div
+                        className="rank-card__winner"
+                        style={{
+                          background: 'rgba(255, 215, 0, 0.2)',
+                          color: '#B45309'
+                        }}
+                      >
                         🏆 WINNER
                       </div>
                     )}
                   </div>
-                  <div style={{ 
-                    padding: '10px 16px',
-                    background: '#F9FAFB',
-                    fontSize: '14px',
-                    color: '#4B5563',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center'
-                  }}>
-                    <div style={{ display: 'flex', gap: '16px' }}>
+                  <div className="rank-card__stats">
+                    <div className="rank-card__statlist">
                       <span>👥 <strong>{c.online_votes ?? 0}</strong> votes</span>
                       <span>📡 <strong>{c.remote_votes ?? 0}</strong> remote</span>
                       <span>⭐ <strong>{c.judge_score ?? 0}</strong> judge</span>
                     </div>
                     {c.rank <= 7 && (
-                      <div style={{
-                        fontSize: '12px',
-                        color: c.rank <= 3 ? '#10B981' : '#6B7280',
-                        fontWeight: '500'
-                      }}>
+                      <div
+                        className="rank-card__status"
+                        style={{ color: c.rank <= 3 ? '#10B981' : '#6B7280' }}
+                      >
                         {c.rank <= 3 ? 'Advances to next round' : 'Eliminated'}
                       </div>
                     )}
@@ -283,23 +242,15 @@ export default function AdminRoundResultsPage() {
           ) : (
             // Show input form before compute
             contestants.map((c) => (
-              <div key={c.id} style={{
-                background: '#FFF',
-                borderRadius: '8px',
-                border: '1px solid #E5E7EB',
-                padding: '16px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center'
-              }}>
+              <div key={c.id} className="entry-card">
                 <div>
-                  <div style={{ fontSize: '16px', fontWeight: '600' }}>{c.name}</div>
-                  <div style={{ fontSize: '14px', color: '#6B7280', marginTop: '4px' }}>
+                  <div className="entry-card__name">{c.name}</div>
+                  <div className="entry-card__online">
                     Online: {c.online_votes || 0} votes
                   </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                <div className="entry-card__controls">
+                  <div className="entry-card__judge">
                     <span style={{ marginRight: '8px' }}>Judge:</span>
                     <input
                       type="number"
@@ -312,14 +263,8 @@ export default function AdminRoundResultsPage() {
                           [c.id]: Number(e.target.value) || 0
                         })
                       }
-                      style={{
-                        width: '80px',
-                        padding: '6px 8px',
-                        border: '1px solid #D1D5DB',
-                        borderRadius: '6px',
-                        textAlign: 'right',
-                        background: hasComputed ? '#F3F4F6' : '#FFFFFF'
-                      }}
+                      className="entry-card__input"
+                      style={{ background: hasComputed ? '#F3F4F6' : '#FFFFFF' }}
                       min="0"
                       step="1"
                     />
@@ -359,19 +304,13 @@ function AdvancedModal({ ranked, onClose, onSubmit, isFinalRound=false }) {
   const valid = next.length >= 2;
 
   return (
-    <div style={{
-      position:"fixed", inset:0, background:"rgba(0,0,0,0.3)",
-      display:"flex", justifyContent:"center", alignItems:"center"
-    }}>
-      <div style={{
-        width:"700px", background:"#FFF", borderRadius:12,
-        padding:24, maxHeight:"80vh", overflowY:"auto"
-      }}>
-        <h3 style={{ fontSize:18, fontWeight:600 }}>
+    <div className="modal-backdrop">
+      <div className="modal">
+        <h3 className="modal__title">
           {isFinalRound ? 'Finalize Show' : 'Create Next Round'} (Advanced)
         </h3>
 
-        <div style={{ marginTop:12 }}>
+        <div className="modal__field">
           Take Top:
           <input
             type="number"
@@ -379,80 +318,81 @@ function AdvancedModal({ ranked, onClose, onSubmit, isFinalRound=false }) {
             max={ranked.length}
             value={takeTop}
             onChange={e => setTakeTop(Number(e.target.value))}
-            style={{ width:60, marginLeft:8, border:"1px solid #DDD", borderRadius:6, padding:"4px" }}
+            className="modal__input"
           />
         </div>
 
-        <div style={{ marginTop:18, fontWeight:600 }}>Contestants</div>
+        <div className="modal__section-title">Contestants</div>
         {ranked.map((c,i)=>{
           const rank=i+1;
           const isBase=i<takeTop;
           const isWildcard=wildcards.includes(c.id);
           const isRemove=removes.includes(c.id);
           return (
-            <div key={c.id} style={{
-              background:"#FAFAFA",
-              padding:10,
-              borderRadius:8,
-              marginTop:6,
-              border: rank<=3 ? "2px solid #FFD872" : "1px solid #E6E1D9"
-            }}>
-              <div style={{ display:"flex", justifyContent:"space-between" }}>
-                <div style={{ display:"flex", gap:8, fontSize:14 }}>
+            <div
+              key={c.id}
+              className="modal__item"
+              style={{ border: rank<=3 ? "2px solid #FFD872" : "1px solid #E6E1D9" }}
+            >
+              <div className="modal__item-row">
+                <div className="modal__item-info">
                   {rank===1 && "🥇"}
                   {rank===2 && "🥈"}
                   {rank===3 && "🥉"}
                   {rank>3 && `#${rank}`}
                   <span>{c.name}</span>
-                  <span style={{ opacity:0.7 }}>({c.final})</span>
+                  <span className="modal__item-score">({c.final})</span>
                 </div>
 
-                <div style={{ display:"flex", gap:6 }}>
-                  <button onClick={()=>toggleWildcard(c.id)}
-                    style={{
-                      padding:"2px 8px", borderRadius:6, border:"none",
-                      background:isWildcard?"#E5D4FF":"#EDEDED", cursor:"pointer"
-                    }}>
+                <div className="modal__item-actions">
+                  <button
+                    onClick={()=>toggleWildcard(c.id)}
+                    className="modal__chip"
+                    style={{ background:isWildcard?"#E5D4FF":"#EDEDED" }}
+                  >
                     Wildcard
                   </button>
-                  <button onClick={()=>toggleRemove(c.id)}
-                    style={{
-                      padding:"2px 8px", borderRadius:6, border:"none",
-                      background:isRemove?"#FFB8A5":"#EDEDED", cursor:"pointer"
-                    }}>
+                  <button
+                    onClick={()=>toggleRemove(c.id)}
+                    className="modal__chip"
+                    style={{ background:isRemove?"#FFB8A5":"#EDEDED" }}
+                  >
                     Remove
                   </button>
                 </div>
               </div>
 
-              {isBase && <div style={{ fontSize:12, opacity:0.7, marginTop:2 }}>Base Top {takeTop}</div>}
+              {isBase && <div className="modal__hint">Base Top {takeTop}</div>}
             </div>
           );
         })}
 
-        <div style={{ marginTop:24 }}>
-          <div style={{ fontWeight:600 }}>
+        <div className="modal__summary">
+          <div className="modal__section-title">
             {isFinalRound ? 'Final Lineup:' : 'Next Round Participants:'}
           </div>
-          <ul style={{ marginTop:6, paddingLeft:16 }}>
+          <ul className="modal__summary-list">
             {next.map(x => <li key={x.id}>{x.name} ({x.final} pts)</li>)}
           </ul>
         </div>
 
-        {!valid && <div style={{ color:"#E55", marginTop:6 }}>Must have at least 2 contestants</div>}
+        {!valid && <div className="modal__error">Must have at least 2 contestants</div>}
 
-        <div style={{ display:"flex", gap:12, marginTop:24 }}>
-          <button onClick={onClose}
-            style={{ padding:"6px 12px", borderRadius:6, border:"1px solid #DDD", background:"#FFF", cursor:"pointer" }}>
+        <div className="modal__footer">
+          <button
+            onClick={onClose}
+            className="modal__btn modal__btn--secondary"
+          >
             Cancel
           </button>
           <button
             disabled={!valid}
             onClick={() => onSubmit({ takeTop, wildcards, removes, debut: next.map(x=>x.id) })}
+            className="modal__btn modal__btn--primary"
             style={{
               background:valid?"#B6F3C1":"#DDD",
-              padding:"6px 12px", borderRadius:6,
-              border:"none", cursor:valid?"pointer":"default"
+              border: "none",
+              cursor:valid?"pointer":"default"
             }}
           >
             {isFinalRound ? 'Finalize Show' : 'Create Next Round'}
