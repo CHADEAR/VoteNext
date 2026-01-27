@@ -141,6 +141,13 @@ export default function AdminPreviewVotePollPage() {
             view result
           </button>
         </div>
+          <button
+            className="btn-primary"
+            onClick={() => navigate(`/admin/rounds/${round.id}`)}
+          >
+            view result
+          </button>
+        </div>
       </main>
     </div>
   );
