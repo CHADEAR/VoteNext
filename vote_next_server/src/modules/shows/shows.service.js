@@ -1,5 +1,5 @@
 // vote_next_server/src/modules/shows/shows.service.js
-const { pool } = require("../../config/db");
+const pool = require("../../config/db");
 
 async function createShowInDb({ title, description, createdBy }) {
   const result = await pool.query(

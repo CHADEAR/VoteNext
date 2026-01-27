@@ -2,8 +2,11 @@
 const { Pool } = require("pg");
 const { DATABASE_URL } = require("./env");
 
+// Fallback DATABASE_URL for development if not set
+const databaseUrl = DATABASE_URL || "postgresql://postgres:password@localhost:5432/votenext";
+
 const pool = new Pool({
-  connectionString: DATABASE_URL,
+  connectionString: databaseUrl,
 });
 
 pool.on("error", (err) => {
@@ -11,5 +14,5 @@ pool.on("error", (err) => {
   process.exit(1);
 });
 
-module.exports = { pool };
+module.exports = pool;
 

@@ -1,5 +1,5 @@
 // src/modules/public/public.service.js
-const { pool } = require("../../config/db");
+const pool = require("../../config/db");
 
 /**
  * Submit online vote (email required)

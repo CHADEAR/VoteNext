@@ -39,7 +39,7 @@ const CreateVotePoll = () => {
   const buildImageUrl = (url) => {
     if (!url) return null;
     if (/^https?:\/\//i.test(url)) return url;
-    const apiBase = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
+    const apiBase = import.meta.env.VITE_API_URL || "http://localhost:4001/api";
     return apiBase.replace(/\/api\/?$/, "") + url;
   };
 
@@ -268,9 +268,22 @@ const CreateVotePoll = () => {
         const r = await createVotePoll(submit);
         toast.success("สร้างโพลสำเร็จ!");
 
-        navigate(`/admin/preview/${r.data.round.id}`, {
-          state: { room: { data: r.data } },
-        });
+        // Debug logging
+        console.log("Counter type:", formData.counterType);
+        console.log("Round data:", r.data.round);
+
+        // Navigate to different preview pages based on counter type
+        if (formData.counterType === 'auto') {
+          console.log("Navigating to auto preview:", `/admin/preview/${r.data.round.id}`);
+          navigate(`/admin/preview/${r.data.round.id}`, {
+            state: { room: { data: r.data } },
+          });
+        } else {
+          console.log("Navigating to manual preview:", `/admin/preview-manual/${r.data.round.id}`);
+          navigate(`/admin/preview-manual/${r.data.round.id}`, {
+            state: { room: { data: r.data } },
+          });
+        }
       }
     } catch (err) {
       console.error(err);

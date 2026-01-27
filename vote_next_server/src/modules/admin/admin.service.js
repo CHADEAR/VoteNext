@@ -1,5 +1,5 @@
 // vote_next_server/src/modules/admin/admin.service.js
-const { pool } = require("../../config/db");
+const pool = require("../../config/db");
 
 async function findAdminByEmail(email) {
   const result = await pool.query(

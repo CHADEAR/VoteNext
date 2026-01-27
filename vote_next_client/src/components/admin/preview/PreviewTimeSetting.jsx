@@ -22,12 +22,58 @@ export default function PreviewTimeSetting({
   status,           // 'pending' | 'voting' | 'closed'
   onRefresh,
 }) {
-  const [isRunning, setIsRunning] = useState(false);
-  const [time, setTime] = useState(0);
-  const [displayTime, setDisplayTime] = useState(initialTime);
+  // Debug logging for received props
+  console.log("PreviewTimeSetting props:", {
+    counterType,
+    startDate,
+    endDate,
+    startTime,
+    endTime,
+    roundId
+  });
+  // Load timer state from localStorage on mount
+  const getStoredTimerState = () => {
+    const stored = localStorage.getItem(`timer_${roundId}`);
+    if (stored) {
+      try {
+        return JSON.parse(stored);
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  };
+
+  const storedState = getStoredTimerState();
+  const [isRunning, setIsRunning] = useState(storedState?.isRunning || false);
+  const [time, setTime] = useState(storedState?.time || 0);
+  const [displayTime, setDisplayTime] = useState(storedState?.displayTime || initialTime);
   const [countdown, setCountdown] = useState("");
   const timerRef = useRef(null);
   const countdownRef = useRef(null);
+
+  // Save timer state to localStorage whenever it changes
+  useEffect(() => {
+    if (roundId) {
+      const stateToStore = {
+        isRunning,
+        time,
+        displayTime,
+        timestamp: Date.now()
+      };
+      localStorage.setItem(`timer_${roundId}`, JSON.stringify(stateToStore));
+    }
+  }, [isRunning, time, displayTime, roundId]);
+
+  // Calculate elapsed time if timer was running when page was refreshed
+  useEffect(() => {
+    if (storedState?.isRunning && storedState?.timestamp) {
+      const elapsedSinceRefresh = Math.floor((Date.now() - storedState.timestamp) / 1000);
+      const newTime = storedState.time + elapsedSinceRefresh;
+      setTime(newTime);
+      setDisplayTime(formatTime(newTime));
+    }
+  }, [storedState]);
 
   const formatDate = (dateStr) => {
     if (!dateStr) return "";
@@ -100,23 +146,38 @@ export default function PreviewTimeSetting({
   }, [isRunning]);
 
   const handleStartRound = async () => {
-    await apiClient.post(`/rounds/${roundId}/start`);
+    try {
+      // Try backend API call
+      await apiClient.post(`/rounds/${roundId}/start`);
+    } catch (error) {
+      console.log("Backend API not available, using local timer");
+    }
     onRefresh?.();
     setIsRunning(true);
   };
 
   const handleStopRound = async () => {
-    await apiClient.post(`/rounds/${roundId}/stop`);
+    try {
+      // Try backend API call
+      await apiClient.post(`/rounds/${roundId}/stop`);
+    } catch (error) {
+      console.log("Backend API not available, using local timer");
+    }
     onRefresh?.();
     setIsRunning(false);
+  
+    // Clear localStorage when stopping
+    if (roundId) {
+      localStorage.removeItem(`timer_${roundId}`);
+    }
   };
 
   const renderManualControls = () => (
     <div className="time-controls">
-      <button className="start-btn" onClick={handleStartRound} disabled={status !== "pending"}>
+      <button className="start-btn" onClick={handleStartRound}>
         Start
       </button>
-      <button className="stop-btn" onClick={handleStopRound} disabled={status !== "voting"}>
+      <button className="stop-btn" onClick={handleStopRound} disabled={!isRunning}>
         Stop
       </button>
     </div>
@@ -152,10 +213,6 @@ export default function PreviewTimeSetting({
               <label>End with</label>
               <div className="time-value">{endTime || "00:00:00"}</div>
             </div>
-          </div>
-
-          <div className="time-display">
-            <div className="time-value">{countdown}</div>
           </div>
 
           {renderAutoControls()}

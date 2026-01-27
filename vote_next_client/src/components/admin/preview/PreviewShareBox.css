@@ -1,16 +1,25 @@
 .preview-share-box {
-  padding: 16px;
-  background: #f9fafb;
-  border-radius: 12px;
+  padding: 20px;
+  background: #ffffff;
+  border-radius: 8px;
   text-align: center;
+  border: 1px solid #e0e0e0;
+}
+
+.preview-share-box h3 {
+  margin: 0 0 16px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
 }
 
 .qr-wrapper {
-  margin: 12px 0;
-  padding: 12px;
-  background: #fff;
+  margin: 16px 0;
+  padding: 16px;
+  background: #f5f5f5;
   display: inline-block;
   border-radius: 8px;
+  border: 1px solid #ddd;
 }
 
 .share-link {

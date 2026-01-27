@@ -5,6 +5,7 @@ import AdminLoginPage from "../pages/admin/AdminLoginPage";
 import AdminDashboardPage from "../pages/admin/AdminDashboardPage";
 import CreateVotePollPage from "../pages/admin/CreateVotePollPage";
 import AdminPreviewVotePollPage from "../pages/admin/AdminPreviewVotePollPage";
+import AdminPreviewManualVotePollPage from "../pages/admin/AdminPreviewManualVotePollPage";
 import AdminRoundResultsPage from "../pages/admin/AdminRoundResultsPage";
 
 import VoteEnterEmailPage from "../pages/voter/VoteEnterEmailPage";
@@ -21,6 +22,10 @@ export default function AppRouter() {
         <Route path="/admin/login" element={<AdminLoginPage />} />
         <Route path="/" element={<AdminDashboardPage />} />
         <Route path="/admin/create-poll" element={<CreateVotePollPage />} />
+        <Route
+          path="/admin/preview-manual/:pollId"
+          element={<AdminPreviewManualVotePollPage />}
+        />
         <Route
           path="/admin/preview/:pollId"
           element={<AdminPreviewVotePollPage />}

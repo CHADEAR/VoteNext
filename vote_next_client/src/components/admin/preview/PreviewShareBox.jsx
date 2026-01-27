@@ -17,7 +17,7 @@ export default function PreviewShareBox({ publicSlug }) {
 
   return (
     <div className="preview-share-box">
-      <h3>Share Voting</h3>
+      <h3>Online Share</h3>
 
       {/* ✅ QR CODE */}
       <div className="qr-wrapper">

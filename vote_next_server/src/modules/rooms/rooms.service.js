@@ -1,5 +1,5 @@
 // vote_next_server/src/modules/rooms/rooms.service.js
-const { pool } = require("../../config/db");
+const pool = require("../../config/db");
 
 async function createRoomWithContestants({ title, description, contestants }) {
   const client = await pool.connect();

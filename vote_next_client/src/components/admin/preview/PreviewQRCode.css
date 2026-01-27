@@ -1,0 +1,126 @@
+.preview-qr-code {
+  background: white;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-bottom: 1.5rem;
+}
+
+.qr-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #333;
+  margin: 0 0 1rem 0;
+  text-align: center;
+}
+
+.qr-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.qr-image {
+  position: relative;
+  width: 200px;
+  height: 200px;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f9f9f9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.qr-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.qr-fallback {
+  display: none;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.qr-placeholder {
+  text-align: center;
+}
+
+.qr-icon {
+  font-size: 3rem;
+  margin-bottom: 0.5rem;
+}
+
+.qr-text {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.qr-subtext {
+  font-size: 0.9rem;
+  opacity: 0.9;
+}
+
+.qr-info {
+  text-align: center;
+  max-width: 300px;
+}
+
+.qr-instruction {
+  font-size: 0.9rem;
+  color: #666;
+  margin: 0 0 0.75rem 0;
+  line-height: 1.4;
+}
+
+.qr-url {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.url-label {
+  font-size: 0.8rem;
+  color: #888;
+  font-weight: 500;
+}
+
+.url-value {
+  font-size: 0.85rem;
+  color: #333;
+  font-family: 'Courier New', monospace;
+  word-break: break-all;
+  background: #f5f5f5;
+  padding: 0.5rem;
+  border-radius: 4px;
+  border: 1px solid #e0e0e0;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .preview-qr-code {
+    padding: 1rem;
+  }
+  
+  .qr-image {
+    width: 150px;
+    height: 150px;
+  }
+  
+  .qr-icon {
+    font-size: 2rem;
+  }
+  
+  .qr-text {
+    font-size: 1rem;
+  }
+}

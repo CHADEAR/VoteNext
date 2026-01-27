@@ -1,5 +1,5 @@
 // vote_next_server/src/modules/rounds/rounds.service.js
-const { pool } = require("../../config/db");
+const pool = require("../../config/db");
 
 /**
  * ตรวจสอบสถานะ round และ auto-open/auto-close ถ้าถึงเวลา
