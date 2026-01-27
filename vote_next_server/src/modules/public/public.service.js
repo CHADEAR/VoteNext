@@ -88,12 +88,12 @@ exports.submitOnlineVote = async ({ roundId, contestantId, email }) => {
 
 
 /**
- * Get live rank by public slug (online + remote raw score)
+ * Get rank by public slug (live or final based on results_computed)
  */
 exports.getLiveRankBySlug = async (publicSlug) => {
   // 1) หา round จาก slug
   const roundRes = await pool.query(
-    `SELECT id
+    `SELECT id, results_computed
      FROM rounds
      WHERE public_slug = $1`,
     [publicSlug]
@@ -104,31 +104,52 @@ exports.getLiveRankBySlug = async (publicSlug) => {
   }
 
   const roundId = roundRes.rows[0].id;
+  const resultsComputed = roundRes.rows[0].results_computed;
 
-  // 2) ดึง live rank (raw score)
-  const result = await pool.query(
-    `
-    SELECT
-      c.id,
-      c.stage_name,
-      c.image_url,
-      COUNT(DISTINCT ov.id) AS online_raw,
-      COUNT(DISTINCT rv.id) AS remote_raw,
-      COUNT(DISTINCT ov.id) + COUNT(DISTINCT rv.id) AS live_score
-    FROM round_contestants rc
-    JOIN contestants c ON c.id = rc.contestant_id
-    LEFT JOIN online_votes ov
-      ON ov.round_id = rc.round_id
-     AND ov.contestant_id = rc.contestant_id
-    LEFT JOIN remote_votes rv
-      ON rv.round_id = rc.round_id
-     AND rv.contestant_id = rc.contestant_id
-    WHERE rc.round_id = $1
-    GROUP BY c.id
-    ORDER BY live_score DESC
-    `,
-    [roundId]
-  );
-
-  return result.rows;
+  if (resultsComputed) {
+    // Return final scoreboard
+    const result = await pool.query(
+      `SELECT
+        c.id,
+        c.stage_name,
+        c.image_url,
+        rc.online_votes,
+        rc.remote_votes,
+        rc.judge_score,
+        rc.total_score,
+        rc.rank
+      FROM round_contestants rc
+      JOIN contestants c ON c.id = rc.contestant_id
+      WHERE rc.round_id = $1
+        AND rc.computed_at IS NOT NULL
+      ORDER BY rc.rank ASC, rc.total_score DESC, c.stage_name ASC`,
+      [roundId]
+    );
+    return result.rows;
+  } else {
+    // Return live scoreboard
+    const result = await pool.query(
+      `SELECT
+        c.id,
+        c.stage_name,
+        c.image_url,
+        rc.rank,
+        COUNT(DISTINCT ov.id) AS online_votes,
+        COUNT(DISTINCT rv.id) AS remote_votes,
+        COUNT(DISTINCT ov.id) + COUNT(DISTINCT rv.id) AS live_score
+      FROM round_contestants rc
+      JOIN contestants c ON c.id = rc.contestant_id
+      LEFT JOIN online_votes ov
+        ON ov.round_id = rc.round_id
+       AND ov.contestant_id = rc.contestant_id
+      LEFT JOIN remote_votes rv
+        ON rv.round_id = rc.round_id
+       AND rv.contestant_id = rc.contestant_id
+      WHERE rc.round_id = $1
+      GROUP BY c.id, rc.rank
+      ORDER BY live_score DESC, c.stage_name ASC`,
+      [roundId]
+    );
+    return result.rows;
+  }
 };

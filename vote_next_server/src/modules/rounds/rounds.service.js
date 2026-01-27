@@ -583,6 +583,14 @@ async function computeRoundResults(roundId, judgeScores = []) {
       currentRank++;
     }
 
+    // Mark round as results_computed=true
+    await client.query(
+      `UPDATE rounds 
+       SET results_computed = true
+       WHERE id = $1`,
+      [roundId]
+    );
+
     await client.query('COMMIT');
   
     // Return the results with the computed ranks

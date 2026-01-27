@@ -1,0 +1,222 @@
+/* === BASE MOBILE FIRST === */
+.rank-page {
+  max-width: 500px;
+  margin: 0 auto;
+  padding: 20px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #FAFAFA;
+  min-height: 100vh;
+  color: #111;
+}
+
+/* Logo */
+.rank-logo {
+  font-size: 28px;
+  font-weight: 800;
+  text-align: center;
+  margin-bottom: 28px;
+  letter-spacing: -0.5px;
+}
+
+/* Podium container */
+.rank-podium {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 40px;
+  margin-bottom: 40px;
+}
+
+.podium-item {
+  background: #FFFFFF;
+  border-radius: 14px;
+  padding: 12px;
+  width: 110px;
+  text-align: center;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.07);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.podium-r1 { height: 180px; margin-top: -30px; }
+.podium-r2 { height: 160px; margin-top: 0px; }
+.podium-r3 { height: 160px; margin-top: 0px; }
+
+/* Rank badge */
+.podium-rank-badge {
+  font-size: 14px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: #EAF2FF;
+  color: #3D7FFF;
+  margin: 0 auto;
+}
+
+.podium-r1 .podium-rank-badge {
+  background: #FFE99B;
+  color: #C68000;
+}
+.podium-r3 .podium-rank-badge {
+  background: #D7FCD6;
+  color: #2E8B57;
+}
+
+/* Avatar */
+.podium-avatar {
+  width: 80px;
+  height: 80px;
+  background: #EEE;
+  border-radius: 12px;
+  overflow: hidden;
+  margin: 0 auto;
+}
+
+.podium-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Name & score */
+.podium-name {
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.podium-score {
+  font-size: 14px;
+  font-weight: 600;
+  background: #FFE99B;
+  color: #A06800;
+  padding: 4px 8px;
+  border-radius: 8px;
+  margin-top: auto;
+}
+
+/* Rank List */
+.rank-list {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rank-row {
+  background: #FFFFFF;
+  border-radius: 12px;
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.rank-index {
+  font-size: 16px;
+  font-weight: 600;
+  width: 24px;
+  text-align: center;
+  color: #666;
+}
+
+.rank-avatar {
+  width: 40px;
+  height: 40px;
+  background: #EEE;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.rank-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.rank-name {
+  flex: 1;
+  font-size: 15px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rank-score {
+  font-size: 14px;
+  font-weight: 600;
+  background: #FFE99B;
+  color: #A06800;
+  padding: 4px 8px;
+  border-radius: 8px;
+}
+
+.rank-loading {
+  text-align: center;
+  padding: 40px;
+  font-size: 20px;
+}
+
+/* === TABLET RESPONSIVE === */
+@media (min-width: 600px) {
+  .rank-page {
+    max-width: 780px;
+  }
+
+  .podium-item {
+    width: 150px;
+    padding: 16px;
+  }
+
+  .podium-avatar {
+    width: 100px;
+    height: 100px;
+  }
+
+  .rank-list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+}
+
+/* === DESKTOP RESPONSIVE === */
+@media (min-width: 1024px) {
+  .rank-page {
+    max-width: 1100px;
+  }
+
+  .rank-podium {
+    margin-bottom: 60px;
+    gap: 24px;
+  }
+
+  .podium-item {
+    width: 200px;
+    height: auto;
+  }
+
+  .podium-avatar {
+    width: 130px;
+    height: 130px;
+  }
+
+  .podium-name {
+    font-size: 18px;
+  }
+
+  .rank-list {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .rank-row {
+    padding: 14px 16px;
+    border-radius: 16px;
+    gap: 14px;
+  }
+}
