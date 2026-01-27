@@ -1,7 +1,8 @@
 // src/pages/voter/VoteEnterEmailPage.jsx
 import React, { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import Navbar from '../../components/layout/Navbar';
+import logo from '../../assets/Black_White_Modern_Bold_Design_Studio_Logo-removebg-preview.png';
+import './VoteEnterEmailPage.css';
 
 
 
@@ -27,11 +28,11 @@ export default function VoteEnterEmailPage() {
 
   return (
     <div className="vote-email-container">
-      <Navbar />
-      
       <main className="vote-email-content">
-        <h1>กรอก Email เพื่อโหวต</h1>
-
+        <div className="logo-container">
+          <img src={logo} alt="VOTE NEXT" className="vote-logo" />
+        </div>
+        
         <form onSubmit={handleSubmit} className="email-form">
           <input
             type="email"
@@ -42,9 +43,9 @@ export default function VoteEnterEmailPage() {
           />
 
           {error && <div className="error-message">{error}</div>}
-
+          <h5>Enter email for vote </h5>
           <button type="submit" className="submit-button">
-            ไปหน้าโหวต
+            Vote now
           </button>
         </form>
       </main>
