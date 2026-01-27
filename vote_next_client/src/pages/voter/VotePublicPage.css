@@ -56,6 +56,35 @@
   color: #475569;
 }
 
+/* ===== Terms and Conditions ===== */
+.terms-conditions {
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 14px;
+  padding: 20px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+.terms-conditions h3 {
+  color: #333;
+  margin: 0 0 15px 0;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.terms-content p {
+  color: #666;
+  line-height: 1.6;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.terms-content p:last-child {
+  margin-bottom: 0;
+}
+
 /* ===== Contestant Grid ===== */
 .contestant-grid {
   display: grid;

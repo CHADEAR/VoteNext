@@ -49,6 +49,7 @@ export default function PreviewTimeSetting({
   const [time, setTime] = useState(storedState?.time || 0);
   const [displayTime, setDisplayTime] = useState(storedState?.displayTime || initialTime);
   const [countdown, setCountdown] = useState("");
+  const [isUrgent, setIsUrgent] = useState(false); // Track if within 1 minute
   const timerRef = useRef(null);
   const countdownRef = useRef(null);
 
@@ -79,6 +80,19 @@ export default function PreviewTimeSetting({
     if (!dateStr) return "";
     const [y, m, d] = dateStr.split("-");
     return `${d}.${m}.${y}`;
+  };
+
+  const formatDateRange = (startDate, endDate) => {
+    if (!startDate) return "Not set";
+    
+    const startFormatted = formatDate(startDate);
+    
+    if (!endDate || endDate === startDate) {
+      return startFormatted;
+    }
+    
+    const endFormatted = formatDate(endDate);
+    return `${startFormatted} - ${endFormatted}`;
   };
 
   const formatTime = (seconds) => {
@@ -113,11 +127,16 @@ export default function PreviewTimeSetting({
     if (now < startDT) {
       const diff = Math.floor((startDT - now) / 1000);
       setCountdown(`Starts in ${formatCountdown(diff)}`);
+      // Check if within 1 minute (60 seconds) of start time
+      setIsUrgent(diff <= 60 && diff > 0);
     } else if (now >= startDT && now < endDT) {
       const diff = Math.floor((endDT - now) / 1000);
       setCountdown(`Ends in ${formatCountdown(diff)}`);
+      // Check if within 1 minute (60 seconds) of end time
+      setIsUrgent(diff <= 60 && diff > 0);
     } else {
       setCountdown("Closed");
+      setIsUrgent(true); // Set urgent when status is Closed
     }
   }, [counterType, startDate, startTime, endTime, endDate]);
 
@@ -199,9 +218,17 @@ export default function PreviewTimeSetting({
 
       {counterType === "auto" ? (
         <div className="auto-time-settings">
+          {/* Prominent Countdown Display */}
+          {countdown && (
+            <div className={`countdown-display ${isUrgent ? 'urgent' : ''}`}>
+              <div className="countdown-label">Voting Status</div>
+              <div className="countdown-value">{countdown}</div>
+            </div>
+          )}
+
           <div className="date-picker">
             <label>select day</label>
-            <div className="date-value">{startDate ? formatDate(startDate) : "Not set"}</div>
+            <div className="date-value">{formatDateRange(startDate, endDate)}</div>
           </div>
 
           <div className="time-pickers">

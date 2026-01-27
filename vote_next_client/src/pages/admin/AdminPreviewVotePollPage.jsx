@@ -6,7 +6,10 @@ import apiClient from "../../api/apiClient";
 import PreviewPollCard from "../../components/admin/preview/PreviewPollCard";
 import PreviewContestantGrid from "../../components/admin/preview/PreviewContestantGrid";
 import PreviewShareBox from "../../components/admin/preview/PreviewShareBox";
+<<<<<<< Updated upstream
 import PreviewQRCode from "../../components/admin/preview/PreviewQRCode";
+=======
+>>>>>>> Stashed changes
 import PreviewTimeSetting from "../../components/admin/preview/PreviewTimeSetting";
 import Navbar from "../../components/layout/Navbar";
 import "./AdminPreviewVotePollPage.css";
@@ -108,8 +111,11 @@ export default function AdminPreviewVotePollPage() {
 
         <div className="preview-bottom">
           <PreviewShareBox publicSlug={round.public_slug} />
+<<<<<<< Updated upstream
           
           <PreviewQRCode publicSlug={round.public_slug} />
+=======
+>>>>>>> Stashed changes
 
           <PreviewTimeSetting
             counterType={counterType}

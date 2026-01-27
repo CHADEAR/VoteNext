@@ -159,6 +159,32 @@ export default function VotePublicPage() {
             {poll.description && <p>{poll.description}</p>}
           </section>
 
+          {/* Terms and Conditions */}
+          {poll.isAuto && poll.start && poll.end && (
+            <div className="terms-conditions">
+              <h3>ข้อกำหนดและเงื่อนไขการโหวต</h3>
+              <div className="terms-content">
+                <p>1. การโหวตจะเปิดให้ดำเนินการตั้งแต่เวลา {poll.start.toLocaleString('th-TH', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}</p>
+                <p>2. การโหวตจะสิ้นสุดลงในเวลา {poll.end.toLocaleString('th-TH', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}</p>
+                <p>3. ผู้โหวตสามารถโหวตได้เพียง 1 ครั้งต่อ 1 อีเมล</p>
+                <p>4. การโหวตที่ดำเนินการนอกช่วงเวลาที่กำหนดจะไม่ถูกนับรวมในผลการโหวต</p>
+                <p>5. ทางผู้จัดงานขอสงวนสิทธิ์ในการตัดสิทธิ์การโหวตหากพบว่ามีการทุจริตหรือไม่ปฏิบัติตามข้อกำหนด</p>
+              </div>
+            </div>
+          )}
+
           {/* STATUS DISPLAY */}
           {!isVotingOpen && (
             <>

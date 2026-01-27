@@ -4,7 +4,6 @@ import Navbar from "../../components/layout/Navbar";
 import PreviewPollCard from "../../components/admin/preview/PreviewPollCard";
 import PreviewContestantGrid from "../../components/admin/preview/PreviewContestantGrid";
 import PreviewShareBox from "../../components/admin/preview/PreviewShareBox";
-import PreviewQRCode from "../../components/admin/preview/PreviewQRCode";
 import PreviewTimeSetting from "../../components/admin/preview/PreviewTimeSetting";
 import apiClient from "../../api/apiClient";
 import "./AdminPreviewVotePollPage.css";
@@ -90,8 +89,6 @@ export default function AdminPreviewManualVotePollPage() {
 
         <div className="preview-bottom">
           <PreviewShareBox publicSlug={round.public_slug} />
-          
-          <PreviewQRCode publicSlug={round.public_slug} />
 
           <PreviewTimeSetting
             counterType={counterType}
