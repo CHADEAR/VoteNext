@@ -5,7 +5,7 @@ import "react-toastify/dist/ReactToastify.css";
 import Navbar from "../../components/layout/Navbar";
 import "./CreateVotePoll.css";
 
-import { createVotePoll } from "../../services/api";
+import { createVotePoll } from "../../services/poll.service";
 import { uploadImageToCloudinary } from "../../services/cloudinaryUpload.service";
 import { patchRoom } from "../../api/rooms.api";
 

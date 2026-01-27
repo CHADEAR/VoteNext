@@ -18,17 +18,11 @@ exports.start = async (req, res) => {
   }
 };
 
-/**
- * POST /api/rounds/:roundId/stop (manual)
- */
 exports.stop = async (req, res) => {
   try {
     const { roundId } = req.params;
-
-    await getRound(roundId); // ensure auto-close if time passed
-
+    await getRound(roundId);
     await closeRound(roundId, "manual");
-
     res.json({ success: true });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
@@ -71,7 +65,12 @@ exports.finalize = async (req, res) => {
 exports.createFirstRound = async (req, res) => {
   try {
     const { showId } = req.params;
-    const { roundName, startTime, endTime } = req.body;
+
+    const roundName = req.body.roundName ?? req.body.round_name;
+    const startTime = req.body.startTime ?? req.body.start_time ?? null;
+    const endTime = req.body.endTime ?? req.body.end_time ?? null;
+    const voteMode = req.body.voteMode ?? req.body.vote_mode;
+    const counterType = req.body.counterType ?? req.body.counter_type;
 
     const result = await roundsService.createFirstRound({
       showId,
@@ -79,6 +78,8 @@ exports.createFirstRound = async (req, res) => {
       startTime,
       endTime,
       createdBy: req.admin?.id || null,
+      voteMode,
+      counterType,
     });
 
     res.json({ success: true, data: result });
@@ -94,7 +95,6 @@ exports.createNextRound = async (req, res) => {
       fromRoundId: roundId,
       ...req.body,
     });
-
     res.json({ success: true, data: result });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message });
@@ -114,9 +114,6 @@ exports.computeResults = async (req, res) => {
   }
 };
 
-/**
- * GET /api/rounds/:roundId
- */
 exports.getRound = async (req, res) => {
   try {
     const { roundId } = req.params;

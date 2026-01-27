@@ -1,13 +1,14 @@
 // vote_next_server/src/modules/shows/shows.routes.js
 const express = require("express");
-const { createShow, getShowById } = require("./shows.controller");
+const { createShow, getShowById, getShows } = require("./shows.controller");
 
 const router = express.Router();
 
-// TODO: ภายหลังค่อยใส่ authAdmin ถ้าจะให้เฉพาะ admin ใช้
+// GET /api/shows
+router.get("/", getShows);
 
-// POST /api/shows
-router.post("/", createShow);
+// POST /api/shows  (รับ JSON)
+router.post("/", express.json(), createShow);
 
 // GET /api/shows/:id
 router.get("/:id", getShowById);

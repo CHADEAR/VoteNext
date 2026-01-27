@@ -1,5 +1,5 @@
 // vote_next_server/src/modules/device/device.model.js
-const db = require("../../config/db");
+const { pool } = require("../../config/db");
 
 // หา "รอบที่กำลังโหวต" ของ show
 async function getCurrentVotingRound(showId) {
@@ -10,14 +10,12 @@ async function getCurrentVotingRound(showId) {
     ORDER BY start_time DESC NULLS LAST, created_at DESC
     LIMIT 1
   `;
-  const r = await db.query(sql, [showId]);
+  const r = await pool.query(sql, [showId]);
   return r.rowCount ? r.rows[0] : null;
 }
 
 // เอาผู้เข้าแข่งขันของ show มาโชว์ (จำกัด 4 คนแบบรีโมท)
 async function getContestantsByShow(showId, limit = 4) {
-  // ใน migration ของคุณมี 001_add_contestant_description.sql
-  // ถ้าคอลัมน์ description มีจริงให้ SELECT มาด้วย ไม่มีก็ไม่เป็นไร
   const sql = `
     SELECT id, stage_name, image_url, order_number
     FROM contestants
@@ -25,7 +23,21 @@ async function getContestantsByShow(showId, limit = 4) {
     ORDER BY order_number ASC NULLS LAST, created_at ASC
     LIMIT $2
   `;
-  const r = await db.query(sql, [showId, limit]);
+  const r = await pool.query(sql, [showId, limit]);
+  return r.rows;
+}
+
+// ✅ ใหม่: เอาผู้เข้าแข่งขัน “ตามรอบ” (สำคัญมากสำหรับรอบถัดไป)
+async function getContestantsByRound(roundId, limit = 4) {
+  const sql = `
+    SELECT c.id, c.stage_name, c.image_url, c.order_number
+    FROM round_contestants rc
+    JOIN contestants c ON c.id = rc.contestant_id
+    WHERE rc.round_id = $1
+    ORDER BY c.order_number ASC NULLS LAST, c.created_at ASC
+    LIMIT $2
+  `;
+  const r = await pool.query(sql, [roundId, limit]);
   return r.rows;
 }
 
@@ -38,31 +50,38 @@ async function upsertRemoteDevice(deviceId, ownerLabel = null) {
     DO UPDATE SET owner_label = COALESCE(EXCLUDED.owner_label, remote_devices.owner_label)
     RETURNING id, device_id, owner_label
   `;
-  const r = await db.query(sql, [deviceId, ownerLabel]);
+  const r = await pool.query(sql, [deviceId, ownerLabel]);
   return r.rows[0];
 }
 
 async function findRemoteDeviceByDeviceId(deviceId) {
   const sql = `SELECT id, device_id, owner_label FROM remote_devices WHERE device_id = $1`;
-  const r = await db.query(sql, [deviceId]);
+  const r = await pool.query(sql, [deviceId]);
   return r.rowCount ? r.rows[0] : null;
 }
 
 // บันทึกโหวตรีโมท: 1 device = 1 vote / round (ตาม UNIQUE)
+// ✅ เพิ่มเงื่อนไขว่า contestant ต้องอยู่ใน round_contestants ด้วย
 async function insertRemoteVote({ roundId, contestantId, remoteDeviceUuid }) {
   const sql = `
     INSERT INTO remote_votes (round_id, contestant_id, remote_device_id)
-    VALUES ($1, $2, $3)
+    SELECT $1, $2, $3
+    WHERE EXISTS (
+      SELECT 1 FROM round_contestants
+      WHERE round_id = $1 AND contestant_id = $2
+    )
     ON CONFLICT (round_id, remote_device_id) DO NOTHING
     RETURNING id
   `;
-  const r = await db.query(sql, [roundId, contestantId, remoteDeviceUuid]);
-  return r.rowCount ? r.rows[0] : null; // null แปลว่าโหวตซ้ำ
+  const r = await pool.query(sql, [roundId, contestantId, remoteDeviceUuid]);
+  return r.rowCount ? r.rows[0] : null;
 }
+
 
 module.exports = {
   getCurrentVotingRound,
   getContestantsByShow,
+  getContestantsByRound, // ✅ export ใหม่
   upsertRemoteDevice,
   findRemoteDeviceByDeviceId,
   insertRemoteVote,

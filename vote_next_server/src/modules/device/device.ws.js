@@ -3,11 +3,10 @@ const WebSocket = require("ws");
 const url = require("url");
 const DeviceService = require("./device.service");
 
-// init websocket server (path: /ws/device)
 function initDeviceWss(server) {
   const wss = new WebSocket.Server({ server, path: "/ws/device" });
 
-  // ให้ service ใช้ broadcast ได้
+  // ✅ ต้องเป็น attachWss
   DeviceService.attachWss(wss);
 
   wss.on("connection", async (ws, req) => {
@@ -20,7 +19,6 @@ function initDeviceWss(server) {
       try {
         const msg = JSON.parse(buf.toString());
 
-        // device ขอ sync สถานะ
         if (msg.type === "get_active" && msg.showId) {
           const payload = await DeviceService.getActivePoll(msg.showId);
           ws.send(JSON.stringify({ type: "active", payload }));

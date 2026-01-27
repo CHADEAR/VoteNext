@@ -1,33 +1,58 @@
 // vote_next_server/src/modules/rounds/rounds.service.js
 const { pool } = require("../../config/db");
 
+function normalizeVoteMode(mode) {
+  const s = String(mode || "").toLowerCase().trim();
+  if (s === "online") return "online";
+  if (s === "remote") return "remote";
+  if (s === "hybrid") return "hybrid";
+  if (s.includes("online") && s.includes("remote")) return "hybrid";
+  return "online";
+}
+
+function normalizeCounterType(counter) {
+  const s = String(counter || "").toLowerCase().trim();
+  if (s === "manual" || s === "auto") return s;
+  return null;
+}
+
 /**
  * ตรวจสอบสถานะ round และ auto-open/auto-close ถ้าถึงเวลา
- * @param {Object} round
- * @returns {Promise<Object>}
+ * NOTE: auto-start/auto-stop ทำงานเฉพาะ counter_type='auto'
  */
 async function ensureRoundIsUpToDate(round) {
   const now = new Date();
 
-  // --- AUTO-START --- (pending -> voting)
-  if (round.status === "pending" && round.start_time) {
-    if (now >= new Date(round.start_time)) {
-      // idempotent safe
-      await startRoundAuto(round.id);
-      // re-fetch for consistency
-      return getRound(round.id);
+  // ✅ ทำเฉพาะรอบ auto เท่านั้น
+  if (round.counter_type === "auto") {
+    if (round.status === "pending" && round.start_time) {
+      if (now >= new Date(round.start_time)) {
+        await startRoundAuto(round.id);
+        return getRound(round.id);
+      }
     }
-  }
 
-  // --- AUTO-STOP --- (voting -> closed)
-  if (round.status === "voting" && round.end_time) {
-    if (now >= new Date(round.end_time)) {
-      await closeRound(round.id, "auto");
-      return { ...round, status: "closed" };
+    if (round.status === "voting" && round.end_time) {
+      if (now >= new Date(round.end_time)) {
+        await closeRound(round.id, "auto");
+        return { ...round, status: "closed" };
+      }
     }
   }
 
   return round;
+}
+
+async function getRound(roundId) {
+  const result = await pool.query(
+    `SELECT id, status, start_time, end_time, counter_type, vote_mode
+     FROM rounds
+     WHERE id = $1`,
+    [roundId]
+  );
+
+  if (result.rowCount === 0) throw new Error("Round not found");
+  return ensureRoundIsUpToDate(result.rows[0]);
 }
 
 /**
@@ -61,7 +86,6 @@ async function startRoundAuto(roundId) {
  */
 async function closeRound(roundId, reason) {
   const client = await pool.connect();
-
   try {
     await client.query("BEGIN");
 
@@ -73,10 +97,7 @@ async function closeRound(roundId, reason) {
       [roundId]
     );
 
-    if (result.rowCount === 0) {
-      throw new Error("Round not found");
-    }
-
+    if (result.rowCount === 0) throw new Error("Round not found");
     const round = result.rows[0];
 
     if (round.status === "closed") {
@@ -210,7 +231,6 @@ async function getRound(roundId) {
  */
 async function startRound(roundId) {
   const client = await pool.connect();
-
   try {
     await client.query("BEGIN");
 
@@ -222,10 +242,7 @@ async function startRound(roundId) {
       [roundId]
     );
 
-    if (result.rowCount === 0) {
-      throw new Error("Round not found");
-    }
-
+    if (result.rowCount === 0) throw new Error("Round not found");
     const round = result.rows[0];
 
     if (round.status !== "pending") {
@@ -236,8 +253,8 @@ async function startRound(roundId) {
       `UPDATE rounds
        SET status='voting',
            start_time = COALESCE(start_time, NOW())
-       WHERE id = $1 AND status='pending'   -- <== กัน start ซ้ำ
-       RETURNING id, status, start_time, end_time`,
+       WHERE id = $1 AND status='pending'
+       RETURNING id, status, start_time, end_time, counter_type, vote_mode`,
       [roundId]
     );
 
@@ -253,75 +270,65 @@ async function startRound(roundId) {
 
 async function createFirstRound({
   showId,
-  roundName = 'Round 1',
+  roundName = "Round 1",
   startTime = null,
   endTime = null,
-  createdBy = null
+  createdBy = null,
+  voteMode,
+  counterType,
 }) {
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
+    await client.query("BEGIN");
 
-    // 1) lock show
     const showRes = await client.query(
       `SELECT id FROM shows WHERE id = $1 FOR UPDATE`,
       [showId]
     );
-    if (showRes.rowCount === 0) {
-      throw new Error('Show not found');
-    }
+    if (showRes.rowCount === 0) throw new Error("Show not found");
 
-    // 2) prevent duplicate first round
     const dup = await client.query(
       `SELECT 1 FROM rounds WHERE show_id = $1`,
       [showId]
     );
-    if (dup.rowCount > 0) {
-      throw new Error('First round already exists');
-    }
+    if (dup.rowCount > 0) throw new Error("First round already exists");
 
-    // 3) get contestants
     const contestantsRes = await client.query(
       `SELECT id FROM contestants WHERE show_id = $1`,
       [showId]
     );
-    if (contestantsRes.rowCount < 2) {
-      throw new Error('At least 2 contestants required');
-    }
+    if (contestantsRes.rowCount < 2) throw new Error("At least 2 contestants required");
 
-    // 4) create round
+    const resolvedVoteMode = normalizeVoteMode(voteMode);
+    const normCounter = normalizeCounterType(counterType);
+
+    // ถ้าไม่ได้ส่ง counterType มา -> ใช้เวลาเป็นตัวตัดสิน (เหมือนเดิม)
+    const resolvedCounterType =
+      normCounter ?? (startTime && endTime ? "auto" : "manual");
+
+    // manual: ไม่ควรมี start/end (กัน auto-start)
+    const st = resolvedCounterType === "auto" ? startTime : null;
+    const et = resolvedCounterType === "auto" ? endTime : null;
+
     const roundRes = await client.query(
       `
       INSERT INTO rounds
-        (show_id, round_name, status, start_time, end_time, created_by, counter_type)
+        (show_id, round_name, status, start_time, end_time, created_by, counter_type, vote_mode)
       VALUES
-        (
-          $1,
-          $2,
-          'pending',
-          $3::timestamptz,
-          $4::timestamptz,
-          $5::uuid,
-          CASE
-            WHEN $3 IS NOT NULL AND $4 IS NOT NULL THEN 'auto'
-            ELSE 'manual'
-          END
-        )
+        ($1, $2, 'pending', $3::timestamptz, $4::timestamptz, $5::uuid, $6, $7)
       RETURNING *
       `,
-      [showId, roundName, startTime, endTime, createdBy]
+      [showId, roundName, st, et, createdBy, resolvedCounterType, resolvedVoteMode]
     );
 
     const round = roundRes.rows[0];
 
-    // ✅ 4.1 set public_slug = round.id (ใช้ id ไปก่อน)
     await client.query(
-      `UPDATE rounds SET public_slug = id::text WHERE id = $1`,
+      `UPDATE rounds SET public_slug = COALESCE(public_slug, id::text) WHERE id = $1`,
       [round.id]
     );
 
-    // 5) map contestants → round_contestants
-    const ids = contestantsRes.rows.map(r => r.id);
+    const ids = contestantsRes.rows.map((r) => r.id);
     await client.query(
       `
       INSERT INTO round_contestants (round_id, contestant_id)
@@ -330,17 +337,15 @@ async function createFirstRound({
       [round.id, ids]
     );
 
-    await client.query('COMMIT');
+    await client.query("COMMIT");
     return { round, contestantCount: ids.length };
-
   } catch (e) {
-    await client.query('ROLLBACK');
+    await client.query("ROLLBACK");
     throw e;
   } finally {
     client.release();
   }
 }
-
 
 async function createNextRound({
   fromRoundId,
@@ -354,27 +359,22 @@ async function createNextRound({
 }) {
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
+    await client.query("BEGIN");
 
-    // 1) โหลด round เดิม + lock
     const r = await client.query(
       `SELECT * FROM rounds WHERE id = $1 FOR UPDATE`,
       [fromRoundId]
     );
-    if (r.rowCount === 0) throw new Error('Round not found');
+    if (r.rowCount === 0) throw new Error("Round not found");
     const prevRound = r.rows[0];
-    if (prevRound.status !== 'closed')
-      throw new Error('Previous round must be closed');
+    if (prevRound.status !== "closed") throw new Error("Previous round must be closed");
 
-    // 2) ห้ามมี round voting ใน show เดียวกัน
     const v = await client.query(
       `SELECT 1 FROM rounds WHERE show_id = $1 AND status = 'voting'`,
       [prevRound.show_id]
     );
-    if (v.rowCount > 0)
-      throw new Error('There is an active voting round');
+    if (v.rowCount > 0) throw new Error("There is an active voting round");
 
-    // 3) ดึงผลคะแนน
     const scores = await client.query(
       `SELECT contestant_id, total_score, rank
        FROM round_contestants
@@ -383,41 +383,41 @@ async function createNextRound({
        ORDER BY rank ASC, total_score DESC, contestant_id`,
       [fromRoundId]
     );
-    if (scores.rowCount === 0)
-      throw new Error('Round results not computed yet');
+    if (scores.rowCount === 0) throw new Error("Round results not computed yet");
 
-    // 4) เลือกผู้ผ่านเข้ารอบ
     let selected = [];
-    if (mode === 'auto') {
-      if (!takeTop || takeTop < 2)
-        throw new Error('takeTop must be >= 2');
-      selected = scores.rows.slice(0, takeTop).map(r => r.contestant_id);
-    } else if (mode === 'advanced') {
-      if (!takeTop || takeTop < 2)
-        throw new Error('takeTop must be >= 2');
-      const top = scores.rows.slice(0, takeTop).map(r => r.contestant_id);
-      selected = [...new Set([...top, ...wildcards])]
-        .filter(id => !removes.includes(id));
+    if (mode === "auto") {
+      if (!takeTop || takeTop < 2) throw new Error("takeTop must be >= 2");
+      selected = scores.rows.slice(0, takeTop).map((r) => r.contestant_id);
+    } else if (mode === "advanced") {
+      if (!takeTop || takeTop < 2) throw new Error("takeTop must be >= 2");
+      const top = scores.rows.slice(0, takeTop).map((r) => r.contestant_id);
+      selected = [...new Set([...top, ...wildcards])].filter((id) => !removes.includes(id));
     } else {
-      throw new Error('Invalid mode');
+      throw new Error("Invalid mode");
     }
 
-    if (selected.length < 2)
-      throw new Error('Next round must have at least 2 contestants');
+    if (selected.length < 2) throw new Error("Next round must have at least 2 contestants");
 
-    // 5) สร้าง round ใหม่
+    const resolvedCounterType = startTime && endTime ? "auto" : "manual";
+    const st = resolvedCounterType === "auto" ? startTime : null;
+    const et = resolvedCounterType === "auto" ? endTime : null;
+
     const nr = await client.query(
       `INSERT INTO rounds
-       (show_id, round_name, status, start_time, end_time)
-       VALUES ($1, $2, 'pending', $3, $4)
+       (show_id, round_name, status, start_time, end_time, vote_mode, counter_type)
+       VALUES ($1, $2, 'pending', $3::timestamptz, $4::timestamptz, $5, $6)
        RETURNING *`,
       [
         prevRound.show_id,
-        roundName || 'Next Round',
-        startTime || null,
-        endTime || null,
+        roundName || "Next Round",
+        st,
+        et,
+        prevRound.vote_mode || "online",
+        resolvedCounterType,
       ]
     );
+
     const newRound = nr.rows[0];
 
     // ✅ set public_slug = round.id (match first round behavior)
@@ -426,7 +426,17 @@ async function createNextRound({
       [newRound.id]
     );
 
-    // 6) ผูก contestants
+    // ✅ set public_slug = round.id (match first round behavior)
+    await client.query(
+      `UPDATE rounds SET public_slug = id::text WHERE id = $1`,
+      [newRound.id]
+    );
+
+    await client.query(
+      `UPDATE rounds SET public_slug = COALESCE(public_slug, id::text) WHERE id = $1`,
+      [newRound.id]
+    );
+
     for (const cid of selected) {
       await client.query(
         `INSERT INTO round_contestants (round_id, contestant_id)
@@ -435,10 +445,10 @@ async function createNextRound({
       );
     }
 
-    await client.query('COMMIT');
+    await client.query("COMMIT");
     return { round: newRound, contestants: selected };
   } catch (e) {
-    await client.query('ROLLBACK');
+    await client.query("ROLLBACK");
     throw e;
   } finally {
     client.release();
