@@ -105,6 +105,9 @@ exports.getLiveRankBySlug = async (publicSlug) => {
 
   const roundId = roundRes.rows[0].id;
   const resultsComputed = roundRes.rows[0].results_computed;
+  
+  console.log(`Round ${roundId} results_computed:`, resultsComputed);
+  console.log(`Type of results_computed:`, typeof resultsComputed);
 
   if (resultsComputed) {
     // Return final scoreboard
