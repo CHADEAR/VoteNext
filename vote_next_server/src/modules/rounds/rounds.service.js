@@ -432,11 +432,6 @@ async function createNextRound({
       [newRound.id]
     );
 
-    await client.query(
-      `UPDATE rounds SET public_slug = COALESCE(public_slug, id::text) WHERE id = $1`,
-      [newRound.id]
-    );
-
     for (const cid of selected) {
       await client.query(
         `INSERT INTO round_contestants (round_id, contestant_id)
