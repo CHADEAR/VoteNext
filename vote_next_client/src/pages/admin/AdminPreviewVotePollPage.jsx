@@ -7,8 +7,6 @@ import PreviewPollCard from "../../components/admin/preview/PreviewPollCard";
 import PreviewContestantGrid from "../../components/admin/preview/PreviewContestantGrid";
 import PreviewShareBox from "../../components/admin/preview/PreviewShareBox";
 import PreviewQRCode from "../../components/admin/preview/PreviewQRCode";
-import PreviewShareBox from "../../components/admin/preview/PreviewShareBox";
-import PreviewQRCode from "../../components/admin/preview/PreviewQRCode";
 import PreviewTimeSetting from "../../components/admin/preview/PreviewTimeSetting";
 import Navbar from "../../components/layout/Navbar";
 import "./AdminPreviewVotePollPage.css";
@@ -43,8 +41,6 @@ export default function AdminPreviewVotePollPage() {
     } catch (err) {
       console.log("Backend API not available, using local data");
       // Don't update state if backend fails
-      console.log("Backend API not available, using local data");
-      // Don't update state if backend fails
     }
   };
 
@@ -59,8 +55,6 @@ export default function AdminPreviewVotePollPage() {
     navigate("/admin/login");
   };
 
-  // Determine counter type (auto preview route should always show auto)
-  const counterType = "auto";
   // Determine counter type (auto preview route should always show auto)
   const counterType = "auto";
 
@@ -93,15 +87,6 @@ export default function AdminPreviewVotePollPage() {
   console.log("Start date formatted:", toDate(round.start_time));
   console.log("End date formatted:", toDate(round.end_time));
 
-  // Debug logging for date data
-  console.log("Full room object:", room);
-  console.log("Round data:", round);
-  console.log("Round keys:", Object.keys(round));
-  console.log("Start time raw:", round.start_time);
-  console.log("End time raw:", round.end_time);
-  console.log("Start date formatted:", toDate(round.start_time));
-  console.log("End date formatted:", toDate(round.end_time));
-
 
   const mappedContestants = contestants.map((c, index) => ({
     id: c.id || index,
@@ -116,19 +101,11 @@ export default function AdminPreviewVotePollPage() {
 
       <main className="main-content">
         <h1 className="preview-title">Preview Vote Poll</h1>
-      <main className="main-content">
-        <h1 className="preview-title">Preview Vote Poll</h1>
 
-        <PreviewPollCard title={show.title} description={show.description} />
         <PreviewPollCard title={show.title} description={show.description} />
 
         <PreviewContestantGrid contestants={mappedContestants} />
-        <PreviewContestantGrid contestants={mappedContestants} />
 
-        <div className="preview-bottom">
-          <PreviewShareBox publicSlug={round.public_slug} />
-          
-          <PreviewQRCode publicSlug={round.public_slug} />
         <div className="preview-bottom">
           <PreviewShareBox publicSlug={round.public_slug} />
           
@@ -145,34 +122,19 @@ export default function AdminPreviewVotePollPage() {
             onRefresh={fetchRound}
           />
         </div>
-          <PreviewTimeSetting
-            counterType={counterType}
-            startDate={toDate(round.start_time)}
-            endDate={toDate(round.end_time)}
-            startTime={toTime(round.start_time)}
-            endTime={toTime(round.end_time)}
-            status={round.status}
-            roundId={round.id}
-            onRefresh={fetchRound}
-          />
+
+        <div className="preview-actions">
+          <button className="btn-secondary" onClick={() => navigate(-1)}>
+            Previous
+          </button>
+
+          <button
+            className="btn-primary"
+            onClick={() => navigate(`/admin/rounds/${round.id}`)}
+          >
+            view result
+          </button>
         </div>
-
-        <div className="preview-actions">
-          <button className="btn-secondary" onClick={() => navigate(-1)}>
-            Previous
-          </button>
-        <div className="preview-actions">
-          <button className="btn-secondary" onClick={() => navigate(-1)}>
-            Previous
-          </button>
-
-        <button
-          className="btn-primary"
-          onClick={() => navigate(`/admin/rounds/${round.id}`)}
-        >
-          view result
-        </button>
-      </div>
       </main>
     </div>
   );
