@@ -7,7 +7,10 @@ import PreviewPollCard from "../../components/admin/preview/PreviewPollCard";
 import PreviewContestantGrid from "../../components/admin/preview/PreviewContestantGrid";
 import PreviewShareBox from "../../components/admin/preview/PreviewShareBox";
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 import PreviewQRCode from "../../components/admin/preview/PreviewQRCode";
+=======
+>>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
 import PreviewTimeSetting from "../../components/admin/preview/PreviewTimeSetting";
@@ -112,8 +115,11 @@ export default function AdminPreviewVotePollPage() {
         <div className="preview-bottom">
           <PreviewShareBox publicSlug={round.public_slug} />
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
           
           <PreviewQRCode publicSlug={round.public_slug} />
+=======
+>>>>>>> Stashed changes
 =======
 >>>>>>> Stashed changes
 
@@ -141,6 +147,7 @@ export default function AdminPreviewVotePollPage() {
             view result
           </button>
         </div>
+<<<<<<< Updated upstream
           <button
             className="btn-primary"
             onClick={() => navigate(`/admin/rounds/${round.id}`)}
@@ -148,6 +155,8 @@ export default function AdminPreviewVotePollPage() {
             view result
           </button>
         </div>
+=======
+>>>>>>> Stashed changes
       </main>
     </div>
   );
