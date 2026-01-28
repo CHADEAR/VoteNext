@@ -13,7 +13,6 @@ const deviceRoutes = require("../modules/device/device.routes");
 
 const router = express.Router();
 
-router.use("/health", healthRoutes);
 router.use("/admin", adminRoutes);
 router.use("/shows", showRoutes);
 router.use("/rooms", roomRoutes);
