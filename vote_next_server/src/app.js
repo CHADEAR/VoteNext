@@ -8,24 +8,31 @@ const { errorHandler } = require("./middlewares/errorHandler");
 const app = express();
 
 /**
- * DEV MODE (vite preview)
- * Allow localhost + render + no-origin (Safari / Mobile)
+ * DEV + VERCEL MODE
+ * Allow localhost + vercel + render + no-origin
  */
-const allowedOrigins = [
+const allowedOrigins = new Set([
   "http://localhost:4173",
   "http://localhost:5173",
   "http://localhost:3000",
-  "https://votenext.onrender.com", // backend render itself
-];
+
+  // backend render
+  "https://votenext.onrender.com",
+
+  // your frontend on vercel (confirmed from log)
+  "https://vote-next.vercel.app",
+]);
 
 const corsOptions = {
   origin: (origin, callback) => {
-    // allow no-origin (Safari, mobile web, render health check, curl)
+    // allow no-origin (Safari / mobile / curl / render health check)
     if (!origin) return callback(null, true);
 
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
+    // allow fixed
+    if (allowedOrigins.has(origin)) return callback(null, true);
+
+    // allow preview on vercel (auto URLs)
+    if (origin.endsWith(".vercel.app")) return callback(null, true);
 
     console.log("❌ Blocked by CORS:", origin);
     return callback(new Error("Not allowed by CORS"));
@@ -35,33 +42,31 @@ const corsOptions = {
   allowedHeaders: ["Content-Type", "Authorization"],
 };
 
+// apply CORS before all middleware
 app.use(cors(corsOptions));
-
-//preflight
 app.options("*", cors(corsOptions));
 
-//body parser
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
-//debug logger
+// debug logger
 app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
   next();
 });
 
-//health
+// health-check
 app.get("/health", (req, res) => {
   res.status(200).json({ status: "ok" });
 });
 
-//API entry point
+// APIs
 app.use("/api", routes);
 
-//static uploads
+// static uploads
 app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
 
-//global error
+// error handler
 app.use(errorHandler);
 
 module.exports = app;
