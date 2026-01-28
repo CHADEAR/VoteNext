@@ -2,8 +2,9 @@ const http = require("http");
 const app = require("./app");
 const { initDeviceWss } = require("./modules/device/device.ws");
 
-const PORT = process.env.PORT || 4000;
+// const PORT = process.env.PORT || 4000;
 
+const PORT = 4000;
 const server = http.createServer(app);
 
 // ✅ init websocket
