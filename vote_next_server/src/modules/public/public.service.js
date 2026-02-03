@@ -105,6 +105,9 @@ exports.getLiveRankBySlug = async (publicSlug) => {
 
   const roundId = roundRes.rows[0].id;
   const resultsComputed = roundRes.rows[0].results_computed;
+  
+  console.log(`Round ${roundId} results_computed:`, resultsComputed);
+  console.log(`Type of results_computed:`, typeof resultsComputed);
 
   if (resultsComputed) {
     // Return final scoreboard
@@ -152,4 +155,66 @@ exports.getLiveRankBySlug = async (publicSlug) => {
     );
     return result.rows;
   }
+};
+
+exports.getRoomBySlug = async (publicSlug) => {
+  if (!publicSlug) {
+    throw new Error("publicSlug is required");
+  }
+
+  // 1) load round
+  const roundRes = await pool.query(
+    `
+    SELECT
+      r.id,
+      r.show_id,
+      r.round_name,
+      r.description,
+      r.start_time,
+      r.end_time,
+      r.status,
+      r.vote_mode,
+      r.counter_type,
+      r.public_slug,
+      r.results_computed
+    FROM rounds r
+    WHERE r.public_slug = $1
+    `,
+    [publicSlug]
+  );
+
+  if (roundRes.rowCount === 0) {
+    throw new Error("Round not found");
+  }
+
+  const round = roundRes.rows[0];
+
+  // 2) load contestants in this round
+  const contestantsRes = await pool.query(
+    `
+    SELECT
+      c.id,
+      c.stage_name,
+      c.image_url,
+      c.description,
+      rc.rank,
+      rc.online_votes,
+      rc.remote_votes,
+      rc.judge_score,
+      rc.total_score
+    FROM round_contestants rc
+    JOIN contestants c ON c.id = rc.contestant_id
+    WHERE rc.round_id = $1
+    ORDER BY
+      rc.rank NULLS LAST,
+      c.stage_name ASC
+    `,
+    [round.id]
+  );
+
+  // 3) return combined object
+  return {
+    ...round,
+    contestants: contestantsRes.rows,
+  };
 };

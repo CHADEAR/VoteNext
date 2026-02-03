@@ -55,8 +55,7 @@ export const submitVote = async (roundId, contestantId, email) => {
     contestantId,
     email,
   });
-  return normalizePublicVote(response.data.data);
-
+  return response.data; // Return the response directly, not normalizePublicVote
 };
 
 
