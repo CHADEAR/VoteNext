@@ -1,8 +1,15 @@
+*{
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: #333;
+}
+
 .preview-time {
-  background: #f8f9fa;
+  background: #f9fafb;
   border-radius: 8px;
-  padding: 1.5rem;
-  margin: 1rem 0;
+  max-width: 50%;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
@@ -15,7 +22,7 @@
   align-items: center;
   gap: 0.5rem;
 }
-
+/* 
 .badge {
   background: #e9ecef;
   color: #495057;
@@ -25,7 +32,7 @@
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-}
+} */
 
 .auto-time-settings {
   display: flex;
@@ -57,9 +64,11 @@
   border-radius: 4px;
   border: 1px solid #dee2e6;
   font-size: 0.9375rem;
-  min-height: 38px;
+  min-height: 58px;
   display: flex;
   align-items: center;
+  width: 70%;
+  justify-content: center;
 }
 
 .time-status {
@@ -86,6 +95,45 @@
   animation: pulse 2s infinite;
 }
 
+.time-controls{
+  margin-top: 7%;
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  gap: 2rem
+}
+
+.start-btn{
+  height: 70px;
+  width: 30%;
+  background: #53af69;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+
+}
+
+.stop-btn{
+  height: 70px;
+  width: 30%;
+  background: #cd4a57;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.time-display{
+  font-size: 2rem;
+  font-weight: 600;
+  color: #333;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+ 
+}
+
 @keyframes pulse {
   0% {
     opacity: 1;
@@ -98,11 +146,11 @@
   }
 }
 
-.preview-manual {
-  background: #fff3cd;
+/* .preview-manual {
+  background: #b1994a;
   color: #856404;
   padding: 1rem;
   border-radius: 4px;
   text-align: center;
   font-size: 0.9375rem;
-}
+} */

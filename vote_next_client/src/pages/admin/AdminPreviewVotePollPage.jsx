@@ -86,9 +86,10 @@ export default function AdminPreviewVotePollPage() {
   }));
 
   return (
+  <div>
+    <Navbar showProfile onLogout={handleLogout} />
     <div className="preview-container">
-      <Navbar showProfile onLogout={handleLogout} />
-
+      
       <h1 className="preview-title">Preview & Start Vote Poll</h1>
 
       <PreviewPollCard title={show.title} description={show.description} />
@@ -123,5 +124,6 @@ export default function AdminPreviewVotePollPage() {
         </button>
       </div>
     </div>
+  </div>
   );
 }

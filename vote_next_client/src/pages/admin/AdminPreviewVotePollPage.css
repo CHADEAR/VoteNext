@@ -1,7 +1,18 @@
-.preview-page {
-  padding: 24px;
-  background: #fffaf3;
-  min-height: 100vh;
+*{
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: #333;
+}
+
+.preview-container{
+  padding: 24px 24px 30px 24px;
+  width: min(1100px, 90%);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
 }
 
 .preview-title {
@@ -14,36 +25,45 @@
   border-radius: 12px;
   padding: 16px;
   margin-bottom: 20px;
+  width: 100%;
 }
 
 .preview-contestant-grid {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  align-items: center;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 14px;
   margin-bottom: 24px;
+  width: 100%;
 }
 
 .preview-contestant-card {
-  background: #ffffff;
+  background: #eaeaea;
   border-radius: 10px;
   padding: 10px;
   text-align: center;
+  min-width: 120px;
 }
 
 .preview-img {
   height: 90px;
   background: #e5e5e5;
-  border-radius: 8px;
+  border-radius: 15px;
   margin-bottom: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
 }
 
 .preview-img img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  display: block;
+  border-radius: 15px;
 }
 
 .preview-vote-btn {
@@ -59,14 +79,20 @@
   display: flex;
   gap: 20px;
   margin-bottom: 20px;
+  width: 100%;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: stretch;
 }
 
 .preview-share,
 .preview-time {
-  background: white;
   padding: 14px;
   border-radius: 12px;
   flex: 1;
+  min-width: 260px;
+  display: flex;
+  flex-direction: column;
 }
 
 .qr-box {
@@ -79,4 +105,10 @@
 .preview-actions {
   display: flex;
   justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.manual-time-settings{
+  margin-top: 3rem;
 }

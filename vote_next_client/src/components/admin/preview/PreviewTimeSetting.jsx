@@ -131,10 +131,10 @@ export default function PreviewTimeSetting({
 
   return (
     <div className="preview-time">
-      <h4>
+      <h3>
         Time setting:{" "}
         <span className="badge">{counterType === "auto" ? "Auto" : "Manual"}</span>
-      </h4>
+      </h3>
 
       {counterType === "auto" ? (
         <div className="auto-time-settings">
