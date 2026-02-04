@@ -144,9 +144,6 @@ export default function VotePublicPage() {
 
   return (
     <div className="vote-page">
-      <header className="vote-header">
-        <div className="vote-logo">VOTE NEXT</div>
-      </header>
 
       {loading && <div className="vote-status">กำลังโหลด...</div>}
       {error && <div className="vote-status error">{error}</div>}

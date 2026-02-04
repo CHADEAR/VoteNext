@@ -3,8 +3,18 @@
   min-height: 100vh;
   background: #f1f3f5;
   color: #0f172a;
-  padding: 16px;
+  padding: clamp(16px, 2.5vw, 28px);
   font-family: "Inter", system-ui, sans-serif;
+  line-height: 1.4;
+}
+
+.vote-header,
+.poll-info,
+.contestant-grid,
+.vote-status {
+  max-width: 1100px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 /* ===== Header ===== */
@@ -12,41 +22,43 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
+  gap: 16px;
+  margin-bottom: clamp(12px, 2vw, 20px);
 }
 
 .vote-logo {
   font-weight: 900;
-  font-size: 20px;
-  letter-spacing: 1px;
+  font-size: clamp(18px, 2.2vw, 22px);
+  letter-spacing: 0.8px;
 }
 
 .vote-search input {
-  width: 220px;
-  padding: 8px 14px;
+  width: min(280px, 40vw);
+  padding: 10px 14px;
   border-radius: 999px;
   border: 1px solid #e5e7eb;
   font-size: 14px;
   outline: none;
+  background: #ffffff;
 }
 
 .vote-search input:focus {
   border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
 }
 
 /* ===== Poll Info ===== */
 .poll-info {
   background: #ffffff;
   border-radius: 14px;
-  padding: 16px;
-  margin-bottom: 16px;
+  padding: clamp(14px, 2.5vw, 20px);
+  margin-bottom: clamp(14px, 2.5vw, 22px);
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.04);
 }
 
 .poll-info h1 {
   margin: 0;
-  font-size: 20px;
+  font-size: clamp(18px, 2.4vw, 22px);
   font-weight: 700;
 }
 
@@ -59,8 +71,8 @@
 /* ===== Contestant Grid ===== */
 .contestant-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: clamp(10px, 2vw, 16px);
 }
 
 /* ===== Contestant Card ===== */
@@ -81,13 +93,13 @@
 
 .contestant-card__image img {
   width: 100%;
-  height: 140px;
+  height: clamp(130px, 22vw, 170px);
   object-fit: cover;
   background: #e5e7eb;
 }
 
 .contestant-card__body {
-  padding: 10px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -105,7 +117,7 @@
   color: #ffffff;
   border: none;
   border-radius: 999px;
-  padding: 6px 12px;
+  padding: 8px 14px;
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
@@ -121,10 +133,16 @@
   color: #0f172a;
   border: none;
   border-radius: 999px;
-  padding: 6px 12px;
+  padding: 8px 14px;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
+}
+
+.btn-primary:focus-visible,
+.btn-secondary:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.35);
+  outline-offset: 2px;
 }
 
 /* ===== Status ===== */
@@ -137,6 +155,19 @@
 
 .vote-status.error {
   color: #b91c1c;
+}
+
+.vote-status.warning {
+  background: #f9f9f9;
+  color: #333;
+  border: 1px solid #e3e3e3;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  margin: 10px auto 18px;
+  max-width: 520px;
+  box-shadow: 0 6px 14px rgba(154, 153, 153, 0.12);
 }
 
 /* ===== Modal Overlay ===== */
@@ -154,8 +185,8 @@
 .modal {
   background: #ffffff;
   border-radius: 18px;
-  padding: 18px;
-  width: min(360px, 90vw);
+  padding: 20px;
+  width: min(420px, 92vw);
   text-align: center;
   position: relative;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);

@@ -1,7 +1,8 @@
 import React, { useRef, useState } from 'react';
-import { CgProfile } from 'react-icons/cg';
+import { FiUser } from 'react-icons/fi';
 import { IoCamera } from 'react-icons/io5';
 import PropTypes from 'prop-types';
+import { Link } from 'react-router-dom';
 import logo from '../../assets/Black_White_Modern_Bold_Design_Studio_Logo-removebg-preview.png';
 import './Navbar.css';
 
@@ -54,10 +55,17 @@ const Navbar = ({ showProfile = false, onLogout }) => {
 
   return (
     <header className="topbar">
-      <img src={logo} alt="logo" className="logo-img" />
+      <Link to="/" className="logo-link" aria-label="Go to dashboard">
+        <img src={logo} alt="logo" className="logo-img" />
+      </Link>
 
       {showProfile && (
-        <div className="profile-wrapper" ref={profileRef}>
+        <div className="topbar-right">
+          <Link to="/" className="topbar-link">
+           Dashboard
+          </Link>
+
+          <div className="profile-wrapper" ref={profileRef}>
           <button
             className="profile-btn"
             onClick={() => setOpenProfile(!openProfile)}
@@ -66,14 +74,14 @@ const Navbar = ({ showProfile = false, onLogout }) => {
             {profileImage ? (
               <img src={profileImage} alt="profile" className="profile-img" />
             ) : (
-              <CgProfile size={30} className="person-icon-small" />
+              <FiUser size={26} className="person-icon-small" />
             )}
           </button>
 
           {openProfile && (
             <div className="profile-dropdown">
               <div className="profile-avatar">
-                {!profileImage && <CgProfile size={90} className="person-icon" />}
+                {!profileImage && <FiUser size={70} className="person-icon" />}
                 {profileImage && <img src={profileImage} alt="avatar" className="avatar-img" />}
                 <span 
                   className="camera" 
@@ -96,6 +104,7 @@ const Navbar = ({ showProfile = false, onLogout }) => {
               </button>
             </div>
           )}
+          </div>
         </div>
       )}
       <input 
