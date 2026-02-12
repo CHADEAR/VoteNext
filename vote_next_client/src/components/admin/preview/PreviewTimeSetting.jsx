@@ -131,17 +131,19 @@ export default function PreviewTimeSetting({
 
   return (
     <div className="preview-time">
-      <h3>
-        Time setting:{" "}
-        <span className="badge">{counterType === "auto" ? "Auto" : "Manual"}</span>
-      </h3>
+      <div className="date-picker">
+        <span className="time-tx">
+          Time setting:{" "}
+          <span className="badge">{counterType === "auto" ? "Auto" : "Manual"}</span>
+        </span>
+        <div className="day-value">
+          <label>Date</label>
+          <div className="date-value">{startDate ? formatDate(startDate) : "Not set"}</div>
+        </div>
+      </div>
 
       {counterType === "auto" ? (
         <div className="auto-time-settings">
-          <div className="date-picker">
-            <label>select day</label>
-            <div className="date-value">{startDate ? formatDate(startDate) : "Not set"}</div>
-          </div>
 
           <div className="time-pickers">
             <div className="time-picker">

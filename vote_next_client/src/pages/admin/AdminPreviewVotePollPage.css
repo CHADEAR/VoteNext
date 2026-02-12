@@ -112,3 +112,30 @@
 .manual-time-settings{
   margin-top: 3rem;
 }
+
+.time-value {
+    background: white;
+    padding: 0.5rem 0.75rem;
+    border-radius: 4px;
+    border: 1px solid #dee2e6;
+    font-size: 0.9375rem;
+    min-height: 58px;
+    display: flex;
+    align-items: center;
+    width: 70%;
+    justify-content: center;
+    margin: 0 auto;
+}
+
+.start-btn{
+  margin-top: -20px;
+}
+
+.stop-btn{
+  margin-top: -20px;
+}
+
+.date-picker{
+  margin: 0 auto;
+}
+

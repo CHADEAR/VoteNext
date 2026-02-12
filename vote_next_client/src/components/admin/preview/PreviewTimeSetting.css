@@ -71,6 +71,20 @@
   justify-content: center;
 }
 
+.day-value{
+  background: white;
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+  border: 1px solid #dee2e6;
+  font-size: 0.9375rem;
+  display: flex;
+  align-items: center;
+  width: 50%;
+  margin-top: 10px;
+  justify-content: center;
+  gap: 15px;
+}
+
 .time-status {
   margin-top: 0.5rem;
   padding-top: 1rem;
@@ -144,6 +158,20 @@
   100% {
     opacity: 1;
   }
+}
+
+.date-picker{
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 5%;
+
+}
+
+.time-tx{
+  width: 150px;
+  margin-top: 7px;
 }
 
 /* .preview-manual {

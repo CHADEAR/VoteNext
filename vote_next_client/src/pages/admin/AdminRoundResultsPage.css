@@ -34,6 +34,7 @@
   border: none;
   font-weight: 500;
   cursor: pointer;
+  color: #f9fafb;
 }
 
 .round-results__action--compute {
@@ -41,7 +42,7 @@
 }
 
 .round-results__action--next {
-  background: #b6f3c1;
+  background: rgb(59, 130, 246);
 }
 
 .round-results__action--disabled {

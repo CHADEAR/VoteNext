@@ -169,9 +169,9 @@ export default function AdminRoundResultsPage() {
             // Show ranked results after compute
             contestants.map((c) => {
               const rankColors = {
-                1: '#FFD700', // Gold
-                2: '#C0C0C0', // Silver
-                3: '#CD7F32'  // Bronze
+                1: '#FFE99B', // Gold
+                2: '#FFE99B', // Silver
+                3: '#FFE99B'  // Bronze
               };
               
               return (
