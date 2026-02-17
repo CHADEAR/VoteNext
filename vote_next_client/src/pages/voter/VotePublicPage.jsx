@@ -66,7 +66,13 @@ export default function VotePublicPage() {
     
     // Setup Socket.IO for realtime updates
     console.log('🔌 Initializing Socket.IO connection in VotePublicPage...');
-    const socket = io('http://localhost:4000', {
+    
+    // Use different URLs for development vs production
+    const socketUrl = window.location.hostname === 'localhost' 
+      ? 'http://localhost:4000'
+      : 'https://vote-next-backend.vercel.app'; // Replace with your backend URL
+    
+    const socket = io(socketUrl, {
       transports: ['polling', 'websocket'], // Try polling first, then websocket
       timeout: 10000,
       forceNew: false, // Don't force new connection to avoid conflicts
