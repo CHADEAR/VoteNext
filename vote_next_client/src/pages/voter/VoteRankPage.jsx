@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { getLiveRankBySlug } from "../../api/rank.api";
+import { io } from "socket.io-client";
 import "./VoteRankPage.css";
 
 export default function VoteRankPage() {
@@ -22,9 +23,49 @@ export default function VoteRankPage() {
   };
 
   useEffect(() => {
+    // Initial fetch
     fetchRank();
-    const timer = setInterval(fetchRank, 3000);
-    return () => clearInterval(timer);
+    
+    // Setup Socket.IO connection for realtime updates
+    console.log('🔌 Initializing Socket.IO connection...');
+    const socket = io('http://localhost:4000', {
+      transports: ['polling', 'websocket'], // Try polling first, then websocket
+      timeout: 10000,
+      forceNew: false, // Don't force new connection to avoid conflicts
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000
+    });
+    
+    socket.on('vote_update', (data) => {
+      console.log('📨 Received vote update:', data);
+      fetchRank(); // Fetch updated rankings when vote occurs
+    });
+    
+    socket.on('connect', () => {
+      console.log('🔌 Connected to realtime voting');
+    });
+    
+    socket.on('connect_error', (error) => {
+      console.error('🔌 Socket connection error:', error);
+    });
+    
+    socket.on('disconnect', (reason) => {
+      console.log('🔌 Disconnected from realtime voting:', reason);
+    });
+    
+    socket.on('reconnect', (attemptNumber) => {
+      console.log('🔌 Reconnected to realtime voting, attempt:', attemptNumber);
+    });
+    
+    socket.on('reconnect_attempt', (attemptNumber) => {
+      console.log('🔌 Reconnecting to realtime voting, attempt:', attemptNumber);
+    });
+    
+    return () => {
+      console.log('🔌 Cleaning up Socket.IO connection...');
+      socket.disconnect();
+    };
   }, [publicSlug]);
 
   if (loading) return <div className="rank-loading">Loading...</div>;

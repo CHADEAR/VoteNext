@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { getPublicVote, submitVote } from "../../services/public-vote.service";
+import { io } from "socket.io-client";
 import ContestantCard from "../../components/voter/ContestantCard";
 import ConfirmVoteModal from "../../components/voter/ConfirmVoteModal";
 import VoteSuccessModal from "../../components/voter/VoteSuccessModal";
@@ -62,6 +63,44 @@ export default function VotePublicPage() {
     };
 
     load();
+    
+    // Setup Socket.IO for realtime updates
+    console.log('🔌 Initializing Socket.IO connection in VotePublicPage...');
+    const socket = io('http://localhost:4000', {
+      transports: ['polling', 'websocket'], // Try polling first, then websocket
+      timeout: 10000,
+      forceNew: false, // Don't force new connection to avoid conflicts
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000
+    });
+    
+    socket.on('vote_update', (data) => {
+      console.log('📨 Vote update received in VotePublicPage:', data);
+      // Refresh poll data to get updated contestant vote counts
+      load();
+    });
+    
+    socket.on('connect', () => {
+      console.log('🔌 Connected to realtime voting (VotePublicPage)');
+    });
+    
+    socket.on('connect_error', (error) => {
+      console.error('🔌 Socket connection error (VotePublicPage):', error);
+    });
+    
+    socket.on('disconnect', (reason) => {
+      console.log('🔌 Disconnected from realtime voting (VotePublicPage):', reason);
+    });
+    
+    socket.on('reconnect', (attemptNumber) => {
+      console.log('🔌 Reconnected in VotePublicPage, attempt:', attemptNumber);
+    });
+    
+    return () => {
+      console.log('🔌 Cleaning up Socket.IO connection in VotePublicPage...');
+      socket.disconnect();
+    };
   }, [publicSlug, email]);
 
   // ========= POLL NORMALIZER ========= //

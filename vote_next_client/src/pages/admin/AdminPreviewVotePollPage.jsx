@@ -1,16 +1,18 @@
 // src/pages/admin/AdminPreviewVotePollPage.jsx
 
 import React, { useEffect, useState } from "react";
-import { useLocation, useNavigate, Navigate } from "react-router-dom";
-import apiClient from "../../api/apiClient";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import PreviewPollCard from "../../components/admin/preview/PreviewPollCard";
 import PreviewContestantGrid from "../../components/admin/preview/PreviewContestantGrid";
 import PreviewTimeSetting from "../../components/admin/preview/PreviewTimeSetting";
 import PreviewShareBox from "../../components/admin/preview/PreviewShareBox";
 import Navbar from "../../components/layout/Navbar";
+import { io } from "socket.io-client";
+import apiClient from "../../api/apiClient";
 import "./AdminPreviewVotePollPage.css";
 
 export default function AdminPreviewVotePollPage() {
+  const params = useParams();
   const location = useLocation();
   const navigate = useNavigate();
   const room = location.state?.room;
@@ -42,10 +44,47 @@ export default function AdminPreviewVotePollPage() {
     }
   };
 
-  // Polling every 2s
+  // Socket.IO connection for realtime updates
   useEffect(() => {
-    const interval = setInterval(fetchRound, 2000);
-    return () => clearInterval(interval);
+    // Initial fetch
+    fetchRound();
+    
+    // Setup Socket.IO connection
+    console.log('🔌 Admin initializing Socket.IO connection...');
+    const socket = io('http://localhost:4000', {
+      transports: ['polling', 'websocket'], // Try polling first, then websocket
+      timeout: 10000,
+      forceNew: false, // Don't force new connection to avoid conflicts
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000
+    });
+    
+    socket.on('vote_update', (data) => {
+      console.log('📨 Admin received vote update:', data);
+      fetchRound(); // Fetch updated round data when vote occurs
+    });
+    
+    socket.on('connect', () => {
+      console.log('🔌 Admin connected to realtime voting');
+    });
+    
+    socket.on('connect_error', (error) => {
+      console.error('🔌 Admin socket connection error:', error);
+    });
+    
+    socket.on('disconnect', (reason) => {
+      console.log('🔌 Admin disconnected from realtime voting:', reason);
+    });
+    
+    socket.on('reconnect', (attemptNumber) => {
+      console.log('🔌 Admin reconnected, attempt:', attemptNumber);
+    });
+    
+    return () => {
+      console.log('🔌 Admin cleaning up Socket.IO connection...');
+      socket.disconnect();
+    };
   }, []);
 
   const handleLogout = () => {

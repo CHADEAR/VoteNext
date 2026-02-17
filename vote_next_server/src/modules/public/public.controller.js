@@ -35,6 +35,12 @@ exports.submitVote = async (req, res) => {
       email,
     });
 
+    // ✅ Broadcast vote update to all connected clients
+    if (global.io) {
+      global.io.emit('vote_update', { roundId, contestantId });
+      console.log(`📢 Broadcasted vote update for round ${roundId}, contestant ${contestantId}`);
+    }
+
     return res.json({
       success: true,
     });
