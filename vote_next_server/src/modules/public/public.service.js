@@ -28,21 +28,21 @@ exports.submitOnlineVote = async ({ roundId, contestantId, email }) => {
 
     const round = r.rows[0];
 
-    // 2) compute hybrid status
+    // 2) compute voting status
     const now = new Date();
-    let hybridStatus = round.db_status;
+    let status = round.db_status;
 
     if (round.counter_type === "auto" && round.start_time && round.end_time) {
       const start = new Date(round.start_time);
       const end = new Date(round.end_time);
 
-      if (now < start) hybridStatus = "pending";
-      else if (now >= start && now < end) hybridStatus = "voting";
-      else if (now >= end) hybridStatus = "closed";
+      if (now < start) status = "pending";
+      else if (now >= start && now < end) status = "voting";
+      else if (now >= end) status = "closed";
     }
 
     // 3) auto sync status closed to DB
-    if (hybridStatus === "closed" && round.db_status !== "closed") {
+    if (status === "closed" && round.db_status !== "closed") {
       await client.query(
         `UPDATE rounds SET status='closed' WHERE id=$1`,
         [roundId]
@@ -50,7 +50,7 @@ exports.submitOnlineVote = async ({ roundId, contestantId, email }) => {
     }
 
     // 4) final guard for voting
-    if (hybridStatus !== "voting") {
+    if (status !== "voting") {
       throw new Error("Voting is not open");
     }
 

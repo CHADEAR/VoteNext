@@ -133,7 +133,7 @@ export default function PreviewTimeSetting({
     <div className="preview-time">
       <div className="date-picker">
         <span className="time-tx">
-          Time setting:{" "}
+          Setting:{" "}
           <span className="badge">{counterType === "auto" ? "Auto" : "Manual"}</span>
         </span>
         <div className="day-value">
@@ -147,11 +147,11 @@ export default function PreviewTimeSetting({
 
           <div className="time-pickers">
             <div className="time-picker">
-              <label>Start with</label>
+              <label className="tx-s">Start with</label>
               <div className="time-value">{startTime || "00:00:00"}</div>
             </div>
             <div className="time-picker">
-              <label>End with</label>
+              <label className="tx-e">End with</label>
               <div className="time-value">{endTime || "00:00:00"}</div>
             </div>
           </div>

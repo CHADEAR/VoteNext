@@ -163,7 +163,7 @@ const CreateVotePoll = () => {
       return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
     };
 
-    const modeType = raw.vote_mode === "hybrid" ? "online+remote" : raw.vote_mode || "online";
+    const modeType = raw.vote_mode || "online";
 
     const mapped = (raw.contestants || [])
       .sort((a, b) => (a.order_number || 0) - (b.order_number || 0))
@@ -232,7 +232,7 @@ const CreateVotePoll = () => {
           poll: {
             title: formData.title,
             description: formData.description,
-            vote_mode: formData.modeType === "online+remote" ? "hybrid" : formData.modeType,
+            vote_mode: formData.modeType,
             counter_type: formData.counterType,
           },
         };
@@ -256,7 +256,7 @@ const CreateVotePoll = () => {
         const submit = {
           title: formData.title,
           description: formData.description,
-          vote_mode: formData.modeType === "online+remote" ? "hybrid" : formData.modeType,
+          vote_mode: formData.modeType,
           counter_type: formData.counterType,
           contestants: uploaded,
         };
@@ -332,13 +332,6 @@ const CreateVotePoll = () => {
                 onClick={() => setFormData(prev => ({ ...prev, modeType: 'remote' }))}
               >
                 Remote
-              </button>
-              <button
-                type="button"
-                className={`mode-btn ${formData.modeType === 'online+remote' ? 'active' : ''}`}
-                onClick={() => setFormData(prev => ({ ...prev, modeType: 'online+remote' }))}
-              >
-                Online + Remote
               </button>
             </div>
           </div>
