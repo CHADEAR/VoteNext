@@ -37,13 +37,13 @@ export default function VoteRankPage() {
   let computed = rankings;
 
   if (!hasRanks) {
-    // compute live score
+    // compute live score - แสดงทุกคนไม่ว่าจะมีคะแนนหรือไม่
     computed = rankings.map(r => ({
       ...r,
       live_score: Number(r.online_votes || 0) + Number(r.remote_votes || 0)
     }));
 
-    // sort by live score desc
+    // sort by live score desc - คนที่ไม่มีคะแนนจะอยู่ล่างสุด
     computed = computed.slice().sort((a, b) => b.live_score - a.live_score);
 
     // assign shared rank
@@ -72,16 +72,16 @@ export default function VoteRankPage() {
       : `${Number(r.live_score || 0)} Vote`;
 
   // ===========================================
-  // 🎤 Podium (2 | 1 | 3)
+  // 🎤 Podium (2 | 1 | 3) - แสดง 3 อันดับแรก
   // ===========================================
-  const top3 = computed.filter(r => r.rank <= 3);
-  const rest = computed.filter(r => r.rank > 3);
+  const top3 = computed.slice(0, 3); // 3 อันดับแรกจากการเรียงลำดับ
+  const rest = computed.slice(3); // ที่เหลือนับจากอันดับที่ 4 เป็นต้นไป
 
   const podiumOrder = [
-    top3.find(r => r.rank === 2),
-    top3.find(r => r.rank === 1),
-    top3.find(r => r.rank === 3),
-  ].filter(Boolean);
+    top3[1], // อันดับ 2 (index 1)
+    top3[0], // อันดับ 1 (index 0) 
+    top3[2], // อันดับ 3 (index 2)
+  ].filter(Boolean); // กรองค่า undefined/null ออก
 
   return (
     <div className="rank-page">
@@ -89,10 +89,10 @@ export default function VoteRankPage() {
 
       {/* Podium */}
       <div className="rank-podium">
-        {podiumOrder.map((c) => (
-          <div key={c.id} className={`podium-item podium-r${c.rank}`}>
+        {podiumOrder.map((c, index) => (
+          <div key={c.id} className={`podium-item podium-r${index === 1 ? 1 : index === 0 ? 2 : 3}`}>
             <div className="podium-rank-badge">
-              {c.rank}
+              {index === 1 ? 1 : index === 0 ? 2 : 3}
             </div>
 
             <div className="podium-avatar">
@@ -114,9 +114,9 @@ export default function VoteRankPage() {
 
       {/* Rank List */}
       <div className="rank-list">
-        {rest.map((c) => (
+        {rest.map((c, index) => (
           <div key={c.id} className="rank-row">
-            <span className="rank-index">{c.rank}</span>
+            <span className="rank-index">{index + 4}</span>
 
             <div className="rank-avatar">
               {c.image_url ? (

@@ -21,11 +21,14 @@ export default function PreviewTimeSetting({
   roundId,
   status,           // 'pending' | 'voting' | 'closed'
   onRefresh,
+  manualStartTime,   // เพิ่ม prop สำหรับเวลาเริ่มต้นของ manual mode
 }) {
   const [isRunning, setIsRunning] = useState(false);
   const [time, setTime] = useState(0);
   const [displayTime, setDisplayTime] = useState(initialTime);
   const [countdown, setCountdown] = useState("");
+  const [isStarting, setIsStarting] = useState(false);
+  const [isStopping, setIsStopping] = useState(false);
   const timerRef = useRef(null);
   const countdownRef = useRef(null);
 
@@ -83,6 +86,24 @@ export default function PreviewTimeSetting({
     }
   }, [counterType, updateCountdown]);
 
+  // คำนวณเวลาที่ผ่านไปสำหรับ manual mode
+  useEffect(() => {
+    if (counterType === "manual" && manualStartTime && status === "voting") {
+      const now = new Date();
+      const start = new Date(manualStartTime);
+      const elapsedSeconds = Math.floor((now - start) / 1000);
+      setTime(elapsedSeconds);
+      setDisplayTime(formatTime(elapsedSeconds));
+      setIsRunning(true);
+    } else if (status === "pending") {
+      setTime(0);
+      setDisplayTime(initialTime);
+      setIsRunning(false);
+    } else if (status === "closed") {
+      setIsRunning(false);
+    }
+  }, [counterType, manualStartTime, status, initialTime]);
+
   useEffect(() => {
     if (isRunning) {
       timerRef.current = setInterval(() => {
@@ -100,34 +121,76 @@ export default function PreviewTimeSetting({
   }, [isRunning]);
 
   const handleStartRound = async () => {
-    await apiClient.post(`/rounds/${roundId}/start`);
-    onRefresh?.();
-    setIsRunning(true);
+    if (isStarting) return; // ป้องกันการกดซ้ำ
+    
+    try {
+      setIsStarting(true);
+      await apiClient.post(`/rounds/${roundId}/start`);
+      await onRefresh?.(); // รอให้ข้อมูลอัพเดทก่อน
+      setIsRunning(true);
+    } catch (error) {
+      console.error('Failed to start round:', error);
+      // อาจแสดง error message ในอนาคต
+    } finally {
+      setIsStarting(false);
+    }
   };
 
   const handleStopRound = async () => {
-    await apiClient.post(`/rounds/${roundId}/stop`);
-    onRefresh?.();
-    setIsRunning(false);
+    if (isStopping) return; // ป้องกันการกดซ้ำ
+    
+    try {
+      setIsStopping(true);
+      await apiClient.post(`/rounds/${roundId}/stop`);
+      await onRefresh?.(); // รอให้ข้อมูลอัพเดทก่อน
+      setIsRunning(false);
+    } catch (error) {
+      console.error('Failed to stop round:', error);
+      // อาจแสดง error message ในอนาคต
+    } finally {
+      setIsStopping(false);
+    }
   };
 
-  const renderManualControls = () => (
-    <div className="time-controls">
-      <button className="start-btn" onClick={handleStartRound} disabled={status !== "pending"}>
-        Start
-      </button>
-      <button className="stop-btn" onClick={handleStopRound} disabled={status !== "voting"}>
-        Stop
-      </button>
-    </div>
-  );
+  const renderManualControls = () => {
+    const isStartDisabled = status !== "pending" || isStarting;
+    const isStopDisabled = status !== "voting" || isStopping;
+    const isBothDisabled = status === "closed";
+    
+    return (
+      <div className="time-controls">
+        <button 
+          className={`start-btn ${isStartDisabled ? 'disabled' : ''} ${isStarting ? 'loading' : ''}`}
+          onClick={handleStartRound} 
+          disabled={isStartDisabled}
+        >
+          {isStarting ? 'Starting...' : 'Start'}
+        </button>
+        <button 
+          className={`stop-btn ${isStopDisabled ? 'disabled' : ''} ${isStopping ? 'loading' : ''}`}
+          onClick={handleStopRound} 
+          disabled={isStopDisabled}
+        >
+          {isStopping ? 'Stopping...' : 'Stop'}
+        </button>
+      </div>
+    );
+  };
 
-  const renderAutoControls = () => (
-    <div className="time-controls">
-      <button className="start-btn" disabled>Start</button>
-      <button className="stop-btn" disabled>Stop</button>
-    </div>
-  );
+  const renderAutoControls = () => {
+    const isBothDisabled = status === "closed";
+    
+    return (
+      <div className="time-controls">
+        <button className="start-btn disabled" disabled>
+          Start
+        </button>
+        <button className="stop-btn disabled" disabled>
+          Stop
+        </button>
+      </div>
+    );
+  };
 
   return (
     <div className="preview-time">

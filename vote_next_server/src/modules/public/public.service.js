@@ -110,7 +110,7 @@ exports.getLiveRankBySlug = async (publicSlug) => {
   console.log(`Type of results_computed:`, typeof resultsComputed);
 
   if (resultsComputed) {
-    // Return final scoreboard
+    // Return final scoreboard - แสดงทุกคนไม่ว่าจะมีการคำนวณคะแนนหรือไม่
     const result = await pool.query(
       `SELECT
         c.id,
@@ -124,8 +124,10 @@ exports.getLiveRankBySlug = async (publicSlug) => {
       FROM round_contestants rc
       JOIN contestants c ON c.id = rc.contestant_id
       WHERE rc.round_id = $1
-        AND rc.computed_at IS NOT NULL
-      ORDER BY rc.rank ASC, rc.total_score DESC, c.stage_name ASC`,
+      ORDER BY 
+        CASE WHEN rc.rank IS NOT NULL THEN rc.rank ELSE 999999 END ASC, 
+        CASE WHEN rc.total_score IS NOT NULL THEN rc.total_score ELSE 0 END DESC, 
+        c.stage_name ASC`,
       [roundId]
     );
     return result.rows;

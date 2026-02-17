@@ -108,6 +108,7 @@ export default function AdminPreviewVotePollPage() {
           status={round.status}
           roundId={round.id}
           onRefresh={fetchRound}
+          manualStartTime={round.start_time}
         />
       </div>
 
