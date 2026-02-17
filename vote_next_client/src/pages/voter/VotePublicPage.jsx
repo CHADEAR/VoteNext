@@ -160,7 +160,7 @@ export default function VotePublicPage() {
           {!isVotingOpen && (
             <>
               {poll.computedStatus === "pending" && poll.isManual && (
-                <div className="vote-status warning">ยังไม่เริ่มโหวต</div>
+                <div className="vote-status warning">Coming soon</div>
               )}
 
               {poll.computedStatus === "pending" && poll.isAuto && poll.startInFuture && (
