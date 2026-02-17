@@ -11,8 +11,6 @@ import VoteEnterEmailPage from "../pages/voter/VoteEnterEmailPage";
 import VotePublicPage from "../pages/voter/VotePublicPage";
 import VoteRankPage from "../pages/voter/VoteRankPage";
 
-import StageRealtimePage from "../pages/stage/StageRealtimePage";
-
 export default function AppRouter() {
   return (
     <BrowserRouter>
@@ -40,10 +38,7 @@ export default function AppRouter() {
           path="/vote/:publicSlug/rank"
           element={<VoteRankPage />}
         />
-
-        {/* ================= Stage ================= */}
-        <Route path="/stage/realtime" element={<StageRealtimePage />} />
-
+        
         {/* ================= 404 ================= */}
         <Route path="*" element={<div>404 Not Found</div>} />
       </Routes>
