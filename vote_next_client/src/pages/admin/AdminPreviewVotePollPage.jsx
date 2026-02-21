@@ -1,7 +1,7 @@
 // src/pages/admin/AdminPreviewVotePollPage.jsx
 
 import React, { useEffect, useState } from "react";
-import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { useParams, useNavigate, useLocation, Navigate } from "react-router-dom";
 import PreviewPollCard from "../../components/admin/preview/PreviewPollCard";
 import PreviewContestantGrid from "../../components/admin/preview/PreviewContestantGrid";
 import PreviewTimeSetting from "../../components/admin/preview/PreviewTimeSetting";
@@ -9,6 +9,7 @@ import PreviewShareBox from "../../components/admin/preview/PreviewShareBox";
 import Navbar from "../../components/layout/Navbar";
 import { io } from "socket.io-client";
 import apiClient from "../../api/apiClient";
+import { clearAdminSession } from "../../services/auth.service";
 import "./AdminPreviewVotePollPage.css";
 
 export default function AdminPreviewVotePollPage() {
@@ -19,7 +20,7 @@ export default function AdminPreviewVotePollPage() {
 
   // Safety guard
   if (!room || !room.data || !room.data.show || !room.data.round) {
-    return <Navigate to="/admin/dashboard" replace />;
+    return <Navigate to="/" replace />;
   }
 
   const show = room.data.show;
@@ -94,7 +95,7 @@ export default function AdminPreviewVotePollPage() {
   }, []);
 
   const handleLogout = () => {
-    localStorage.removeItem("votenext_admin");
+    clearAdminSession();
     navigate("/admin/login");
   };
 

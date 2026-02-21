@@ -8,6 +8,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import logo from '../../assets/Black_White_Modern_Bold_Design_Studio_Logo-removebg-preview.png';
 import { uploadImageToCloudinary } from '../../services/cloudinaryUpload.service';
 import apiClient from '../../api/apiClient';
+import { getAdminFromStorage, ADMIN_STORAGE_KEY } from '../../services/auth.service';
 import './Navbar.css';
 
 const Navbar = ({ showProfile = false, onLogout }) => {
@@ -19,10 +20,9 @@ const Navbar = ({ showProfile = false, onLogout }) => {
 
   // ดึงข้อมูล admin จาก localStorage เมื่อ component mount
   useEffect(() => {
-    const adminData = localStorage.getItem('votenext_admin');
+    const admin = getAdminFromStorage();
     
-    if (adminData) {
-      const admin = JSON.parse(adminData);
+    if (admin) {
       setAdminInfo(admin);
       
       // ดึง profile image ถ้ามี - จัดการกรณีที่เป็น object หรือ string
@@ -117,7 +117,7 @@ const Navbar = ({ showProfile = false, onLogout }) => {
         if (adminInfo) {
           const updatedAdmin = { ...adminInfo, profile_img: imageUrl };
           setAdminInfo(updatedAdmin);
-          localStorage.setItem('votenext_admin', JSON.stringify(updatedAdmin));
+          localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify(updatedAdmin));
           console.log('💾 [Upload Debug] Updated localStorage with:', updatedAdmin);
           
           // เรียก API อัพเดต database (ถ้ามี)

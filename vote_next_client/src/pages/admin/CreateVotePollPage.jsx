@@ -8,6 +8,7 @@ import "./CreateVotePoll.css";
 import { createVotePoll } from "../../services/api";
 import { uploadImageToCloudinary } from "../../services/cloudinaryUpload.service";
 import { patchRoom } from "../../api/rooms.api";
+import { clearAdminSession } from "../../services/auth.service";
 
 const CreateVotePoll = () => {
   const location = useLocation();
@@ -32,7 +33,7 @@ const CreateVotePoll = () => {
   });
 
   const handleLogout = () => {
-    localStorage.removeItem("votenext_admin");
+    clearAdminSession();
     navigate("/admin/login");
   };
 

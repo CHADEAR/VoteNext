@@ -1,13 +1,15 @@
 // src/pages/admin/AdminLoginPage.jsx
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { adminLogin, resetPassword } from "../../services/auth.service";
+import { useNavigate, useLocation } from "react-router-dom";
+import { adminLogin, resetPassword, ADMIN_STORAGE_KEY } from "../../services/auth.service";
 import logo from '../../assets/Black_White_Modern_Bold_Design_Studio_Logo-removebg-preview.png';
 import "./AdminLogin.css";
 import { MdEmail, MdLock } from "react-icons/md";
 
 export default function AdminLoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const from = location.state?.from || "/";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -38,11 +40,10 @@ export default function AdminLoginPage() {
       setLoading(true);
       const admin = await adminLogin({ email, password });
 
-      // เก็บ admin ไว้ใช้ต่อ (ง่าย ๆ ก่อน)
-      localStorage.setItem("votenext_admin", JSON.stringify(admin));
+      localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify(admin));
 
       setInfo("Login สำเร็จ กำลังเปลี่ยนหน้า...");
-      navigate("/");
+      navigate(from, { replace: true });
     } catch (err) {
       console.error(err);
       const msg =
