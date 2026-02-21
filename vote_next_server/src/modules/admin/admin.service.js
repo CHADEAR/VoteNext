@@ -3,7 +3,7 @@ const { pool } = require("../../config/db");
 
 async function findAdminByEmail(email) {
   const result = await pool.query(
-    `SELECT id, email, password_hash, full_name
+    `SELECT id, email, password_hash, full_name, profile_img
      FROM admins
      WHERE email = $1`,
     [email]
@@ -17,7 +17,41 @@ function verifyPassword(plainPassword, storedPasswordHash) {
   return plainPassword === storedPasswordHash;
 }
 
+async function updateAdminPassword(adminId, newPassword) {
+  try {
+    const result = await pool.query(
+      `UPDATE admins 
+       SET password_hash = $1 
+       WHERE id = $2`,
+      [newPassword, adminId] // ในระบบจริงควรใช้ bcrypt.hash(newPassword)
+    );
+    
+    return result.rowCount > 0;
+  } catch (error) {
+    console.error("Error updating admin password:", error);
+    return false;
+  }
+}
+
+async function updateAdminProfileImage(adminId, profileImageUrl) {
+  try {
+    const result = await pool.query(
+      `UPDATE admins 
+       SET profile_img = $1 
+       WHERE id = $2`,
+      [profileImageUrl, adminId]
+    );
+    
+    return result.rowCount > 0;
+  } catch (error) {
+    console.error("Error updating admin profile image:", error);
+    return false;
+  }
+}
+
 module.exports = {
   findAdminByEmail,
   verifyPassword,
+  updateAdminPassword,
+  updateAdminProfileImage,
 };
