@@ -73,3 +73,24 @@ exports.getLiveRank = async (req, res) => {
   }
 };
 
+
+exports.checkIfVoted = async (req, res) => {
+  try {
+    const { publicSlug } = req.params;
+    const { email } = req.body;
+
+    const hasVoted = await publicService.checkIfUserVoted(publicSlug, email);
+
+    res.json({
+      success: true,
+      hasVoted,
+    });
+  } catch (err) {
+    console.error("checkIfVoted error:", err);
+    res.status(400).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
+

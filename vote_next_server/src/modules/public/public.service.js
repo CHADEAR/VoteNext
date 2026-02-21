@@ -220,3 +220,25 @@ exports.getRoomBySlug = async (publicSlug) => {
     contestants: contestantsRes.rows,
   };
 };
+
+exports.checkIfUserVoted = async (publicSlug, email) => {
+  // Get round ID from public slug
+  const roundRes = await pool.query(
+    `SELECT id FROM rounds WHERE public_slug = $1`,
+    [publicSlug]
+  );
+
+  if (roundRes.rowCount === 0) {
+    throw new Error("Round not found");
+  }
+
+  const roundId = roundRes.rows[0].id;
+
+  // Check if user has voted in this round
+  const voteRes = await pool.query(
+    `SELECT id FROM online_votes WHERE round_id = $1 AND voter_email = $2 LIMIT 1`,
+    [roundId, email.toLowerCase()]
+  );
+
+  return voteRes.rowCount > 0;
+};

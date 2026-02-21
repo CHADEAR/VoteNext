@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { getPublicVote, submitVote } from "../../services/public-vote.service";
+import { getPublicVote, submitVote, checkIfVoted } from "../../services/public-vote.service";
 import { io } from "socket.io-client";
 import ContestantCard from "../../components/voter/ContestantCard";
 import ConfirmVoteModal from "../../components/voter/ConfirmVoteModal";
@@ -35,6 +35,7 @@ export default function VotePublicPage() {
   const [loading, setLoading] = useState(true);
   const [voting, setVoting] = useState(false);
   const [error, setError] = useState("");
+  const [checkingVote, setCheckingVote] = useState(true);
 
   const [selectedContestant, setSelectedContestant] = useState(null);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -49,6 +50,28 @@ export default function VotePublicPage() {
       return;
     }
 
+    const checkVoteStatus = async () => {
+      try {
+        setCheckingVote(true);
+        const hasVoted = await checkIfVoted(publicSlug, email);
+        
+        if (hasVoted) {
+          // User already voted, redirect to rank page
+          navigate(`/vote/${publicSlug}/rank`);
+          return;
+        }
+        
+        // Load poll only if user hasn't voted
+        await load();
+      } catch (err) {
+        console.error("Error checking vote status:", err);
+        // Continue to load poll even if check fails
+        await load();
+      } finally {
+        setCheckingVote(false);
+      }
+    };
+
     const load = async () => {
       try {
         setLoading(true);
@@ -62,7 +85,7 @@ export default function VotePublicPage() {
       }
     };
 
-    load();
+    checkVoteStatus();
     
     // Setup Socket.IO for realtime updates
     console.log('🔌 Initializing Socket.IO connection in VotePublicPage...');
@@ -190,7 +213,8 @@ export default function VotePublicPage() {
   return (
     <div className="vote-page">
 
-      {loading && <div className="vote-status">กำลังโหลด...</div>}
+      {checkingVote && <div className="vote-status">กำลังตรวจสอบสถานะการโหวต...</div>}
+      {loading && !checkingVote && <div className="vote-status">กำลังโหลด...</div>}
       {error && <div className="vote-status error">{error}</div>}
 
       {/* MAIN */}

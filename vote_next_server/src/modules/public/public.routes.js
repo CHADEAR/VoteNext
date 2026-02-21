@@ -9,6 +9,9 @@ router.get("/vote/:publicSlug", controller.getPublicVote);
 // POST /api/public/vote
 router.post("/vote", controller.submitVote);
 
+// POST /api/public/vote/:publicSlug/check-vote
+router.post("/vote/:publicSlug/check-vote", controller.checkIfVoted);
+
 // GET /api/public/vote/:publicSlug/rank
 router.get("/vote/:publicSlug/rank", controller.getLiveRank);
 

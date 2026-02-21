@@ -72,6 +72,18 @@ export const verifyVoter = async (voteId, email) => {
   }
 };
 
+export const checkIfVoted = async (publicSlug, email) => {
+  try {
+    const response = await apiClient.post(`/public/vote/${publicSlug}/check-vote`, {
+      email,
+    });
+    return response.data.hasVoted;
+  } catch (error) {
+    console.error("Error checking if voted:", error);
+    return false;
+  }
+};
+
 export const getVoteResults = async (voteId) => {
   try {
     const response = await apiClient.get(`/public/vote/${voteId}/results`);
