@@ -19,13 +19,10 @@ const Navbar = ({ showProfile = false, onLogout }) => {
 
   // ดึงข้อมูล admin จาก localStorage เมื่อ component mount
   useEffect(() => {
-    console.log('🔍 [Profile Debug] Component mounted, checking localStorage...');
     const adminData = localStorage.getItem('votenext_admin');
-    console.log('📦 [Profile Debug] Raw admin data from localStorage:', adminData);
     
     if (adminData) {
       const admin = JSON.parse(adminData);
-      console.log('👤 [Profile Debug] Parsed admin data:', admin);
       setAdminInfo(admin);
       
       // ดึง profile image ถ้ามี - จัดการกรณีที่เป็น object หรือ string
@@ -35,25 +32,27 @@ const Navbar = ({ showProfile = false, onLogout }) => {
         // ถ้า profile_img เป็น object ให้ดึง imageUrl
         if (typeof admin.profile_img === 'object' && admin.profile_img.imageUrl) {
           profileImageUrl = admin.profile_img.imageUrl;
-          console.log('� [Profile Debug] profile_img is object, extracting imageUrl:', profileImageUrl);
+          console.log('🔧 [Mount Debug] profile_img is object, extracting imageUrl:', profileImageUrl);
         } else if (typeof admin.profile_img === 'string') {
           profileImageUrl = admin.profile_img;
-          console.log('🔧 [Profile Debug] profile_img is string:', profileImageUrl);
+          console.log('🔧 [Mount Debug] profile_img is string:', profileImageUrl);
+        } else if (typeof admin.profile_img === 'object' && !admin.profile_img.imageUrl) {
+          console.log('❌ [Mount Debug] profile_img is object but no imageUrl property');
         }
         
-        console.log('🖼️ [Profile Debug] Final profile image URL:', profileImageUrl);
+        console.log('🖼️ [Mount Debug] Final profile image URL:', profileImageUrl);
         setProfileImage(profileImageUrl);
       } else {
-        console.log('❌ [Profile Debug] No profile_img found in admin data');
+        console.log('❌ [Mount Debug] No profile_img found in admin data');
       }
     } else {
-      console.log('❌ [Profile Debug] No admin data found in localStorage');
+      console.log('❌ [Mount Debug] No admin data found in localStorage');
     }
   }, []);
 
   // Debug profileImage state changes
   useEffect(() => {
-    console.log('🎨 [Profile Debug] ProfileImage state changed:', profileImage);
+    console.log('🎨 [Upload Debug] ProfileImage state changed to:', profileImage);
   }, [profileImage]);
 
   // ฟังก์ชันสำหรับอัพเดต profile ใน database
@@ -84,7 +83,6 @@ const Navbar = ({ showProfile = false, onLogout }) => {
 
   const handleFileChange = async (e) => {
     const file = e.target.files[0];
-    console.log('📁 [Profile Debug] File selected:', file);
     
     if (file) {
       try {
@@ -104,19 +102,23 @@ const Navbar = ({ showProfile = false, onLogout }) => {
         toast.info('กำลังอัพโหลดรูปภาพ...');
 
         // อัพโหลดขึ้น Cloudinary
-        const imageUrl = await uploadImageToCloudinary(file);
-        console.log('☁️ [Profile Debug] Image uploaded to Cloudinary:', imageUrl);
+        const cloudinaryResponse = await uploadImageToCloudinary(file);
+        console.log('🖼️ [Upload Debug] Image uploaded to Cloudinary:', cloudinaryResponse);
         
-        // อัพเดต state
+        // ดึงเฉพาะ imageUrl จาก response
+        const imageUrl = cloudinaryResponse.imageUrl || cloudinaryResponse;
+        console.log('🔗 [Upload Debug] Extracted imageUrl:', imageUrl);
+        
+        // อัพเดต state ด้วย string URL เท่านั้น
         setProfileImage(imageUrl);
-        console.log('🖼️ [Profile Debug] Profile image state updated:', imageUrl);
+        console.log('🔄 [Upload Debug] ProfileImage state set to:', imageUrl);
         
         // อัพเดต localStorage
         if (adminInfo) {
           const updatedAdmin = { ...adminInfo, profile_img: imageUrl };
           setAdminInfo(updatedAdmin);
           localStorage.setItem('votenext_admin', JSON.stringify(updatedAdmin));
-          console.log('💾 [Profile Debug] Updated localStorage:', updatedAdmin);
+          console.log('💾 [Upload Debug] Updated localStorage with:', updatedAdmin);
           
           // เรียก API อัพเดต database (ถ้ามี)
           await updateAdminProfile(adminInfo.id, imageUrl);
@@ -125,7 +127,7 @@ const Navbar = ({ showProfile = false, onLogout }) => {
         toast.success('อัพโหลดรูปภาพสำเร็จ');
         
       } catch (error) {
-        console.error('❌ [Profile Debug] Error uploading profile image:', error);
+        console.error('Error uploading profile image:', error);
         toast.error('อัพโหลดรูปภาพไม่สำเร็จ');
       }
     }
@@ -155,6 +157,7 @@ const Navbar = ({ showProfile = false, onLogout }) => {
             onClick={() => setOpenProfile(!openProfile)}
             aria-label="Profile menu"
           >
+            {console.log('🎨 [Render Debug] Rendering profile button, profileImage:', profileImage)}
             {profileImage ? (
               <img src={profileImage} alt="profile" className="profile-img" />
             ) : (
