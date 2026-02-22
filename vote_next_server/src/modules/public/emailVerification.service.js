@@ -3,21 +3,6 @@ const https = require("https");
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** โดเมน webmail ที่เชื่อถือได้ — ข้าม Hunter (ใช้แค่ format + MX) */
-const WEBMAIL_DOMAINS = new Set([
-  "gmail.com",
-  "googlemail.com",
-  "yahoo.com",
-  "yahoo.co.th",
-  "hotmail.com",
-  "outlook.com",
-  "live.com",
-  "icloud.com",
-  "mail.com",
-  "protonmail.com",
-  "aol.com",
-]);
-
 /**
  * ตรวจ format อีเมล
  */
@@ -42,15 +27,10 @@ async function checkMx(email) {
 }
 
 /**
- * ตรวจอีเมลผ่าน Hunter API
- * ถ้าเป็นโดเมน webmail (gmail, yahoo, outlook ฯลฯ) ข้าม Hunter — ใช้แค่ format + MX
- * Status: valid, accept_all, unknown = อนุญาต | invalid = ไม่อนุญาต
+ * ตรวจอีเมลผ่าน Hunter API (รวม Gmail — ไม่ข้าม)
+ * valid, accept_all, unknown = อนุญาต | invalid = ไม่อนุญาต (กันเมลปลอมเช่น gg@gmail.com)
  */
 async function checkHunter(email, apiKey) {
-  const domain = (email || "").trim().toLowerCase().split("@")[1];
-  if (domain && WEBMAIL_DOMAINS.has(domain)) {
-    return true;
-  }
   if (!apiKey) {
     console.warn("HUNTER_API_KEY not set, skipping Hunter check");
     return true;
