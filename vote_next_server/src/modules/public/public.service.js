@@ -40,10 +40,7 @@ exports.verifyEmailForVote = async (publicSlug, email, hunterApiKey) => {
     throw new Error("ไม่พบ MX record ของโดเมนอีเมล");
   }
 
-  const hunterOk = await emailVerification.checkHunter(trimmed, hunterApiKey);
-  if (!hunterOk) {
-    throw new Error("อีเมลนี้ไม่ผ่านการตรวจสอบ (Hunter)");
-  }
+  await emailVerification.checkHunter(trimmed, hunterApiKey);
 
   return {
     roundId: roundAndShow.round_id,

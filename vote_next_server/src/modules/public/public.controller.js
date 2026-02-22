@@ -1,8 +1,10 @@
 const jwt = require("jsonwebtoken");
-const roomService = require("../rooms/rooms.service");
+const { VOTE_TOKEN_EXPIRY } = require("../../config/constants");
 const publicService = require("./public.service");
+const env = require("../../config/env");
+const roomService = require("../rooms/rooms.service");
 
-const VOTE_TOKEN_EXPIRY = "15m"; // 10–15 นาที
+const hunterApiKey = env.HUNTER_API_KEY;
 
 // GET /api/public/vote/:slug
 exports.getPublicVote = async (req, res) => {
@@ -44,14 +46,13 @@ exports.verifyEmail = async (req, res) => {
       });
     }
 
-    const hunterApiKey = process.env.HUNTER_API_KEY;
     const payload = await publicService.verifyEmailForVote(
       publicSlug,
       email,
       hunterApiKey
     );
 
-    const secret = process.env.JWT_SECRET || "votenext-vote-token-secret";
+    const secret = env.JWT_SECRET || "votenext-vote-token-secret";
     const voteToken = jwt.sign(payload, secret, { expiresIn: VOTE_TOKEN_EXPIRY });
 
     return res.json({
@@ -89,7 +90,7 @@ exports.submitVote = async (req, res) => {
       });
     }
 
-    const secret = process.env.JWT_SECRET || "votenext-vote-token-secret";
+    const secret = env.JWT_SECRET || "votenext-vote-token-secret";
     let payload;
     try {
       payload = jwt.verify(voteToken, secret);
@@ -168,7 +169,7 @@ exports.checkIfVoted = async (req, res) => {
 
     let hasVoted = false;
     if (voteToken) {
-      const secret = process.env.JWT_SECRET || "votenext-vote-token-secret";
+      const secret = env.JWT_SECRET || "votenext-vote-token-secret";
       try {
         const payload = jwt.verify(voteToken, secret);
         hasVoted = await publicService.hasVotedInShow(
