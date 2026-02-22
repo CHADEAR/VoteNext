@@ -2,7 +2,69 @@
 const { pool } = require("../../config/db");
 
 /**
- * Submit online vote (email required)
+ * Get round id + show_id by public slug (for verify-email and vote token)
+ */
+exports.getRoundAndShowBySlug = async (publicSlug) => {
+  const r = await pool.query(
+    `SELECT id AS round_id, show_id FROM rounds WHERE public_slug = $1`,
+    [publicSlug]
+  );
+  if (r.rowCount === 0) return null;
+  return r.rows[0];
+};
+
+/**
+ * Verify email for voting: format, MX, Hunter, และยังไม่เคยโหวตใน show นี้
+ * Returns { roundId, showId, email } for JWT payload on success.
+ */
+exports.verifyEmailForVote = async (publicSlug, email, hunterApiKey) => {
+  const emailVerification = require("./emailVerification.service");
+  const trimmed = email.trim().toLowerCase();
+
+  if (!emailVerification.checkFormat(trimmed)) {
+    throw new Error("รูปแบบอีเมลไม่ถูกต้อง");
+  }
+
+  const roundAndShow = await exports.getRoundAndShowBySlug(publicSlug);
+  if (!roundAndShow) {
+    throw new Error("ไม่พบโพลนี้");
+  }
+
+  const hasVoted = await exports.hasVotedInShow(roundAndShow.show_id, trimmed);
+  if (hasVoted) {
+    throw new Error("อีเมลนี้เคยโหวตในรายการนี้แล้ว");
+  }
+
+  const mxOk = await emailVerification.checkMx(trimmed);
+  if (!mxOk) {
+    throw new Error("ไม่พบ MX record ของโดเมนอีเมล");
+  }
+
+  const hunterOk = await emailVerification.checkHunter(trimmed, hunterApiKey);
+  if (!hunterOk) {
+    throw new Error("อีเมลนี้ไม่ผ่านการตรวจสอบ (Hunter)");
+  }
+
+  return {
+    roundId: roundAndShow.round_id,
+    showId: roundAndShow.show_id,
+    email: trimmed,
+  };
+};
+
+/**
+ * เช็คว่า email นี้เคยโหวตใน show นี้หรือยัง (ตาราง votes)
+ */
+exports.hasVotedInShow = async (showId, email) => {
+  const r = await pool.query(
+    `SELECT 1 FROM votes WHERE show_id = $1 AND email = $2 LIMIT 1`,
+    [showId, email.trim().toLowerCase()]
+  );
+  return r.rowCount > 0;
+};
+
+/**
+ * Submit online vote (email from JWT voteToken; also insert into votes for show-level uniqueness)
  */
 exports.submitOnlineVote = async ({ roundId, contestantId, email }) => {
   if (!roundId || !contestantId || !email) {
@@ -13,9 +75,9 @@ exports.submitOnlineVote = async ({ roundId, contestantId, email }) => {
   try {
     await client.query("BEGIN");
 
-    // 1) load round w/ locking
+    // 1) load round w/ locking (need show_id for votes table)
     const r = await client.query(
-      `SELECT id, status AS db_status, start_time, end_time, counter_type
+      `SELECT id, show_id, status AS db_status, start_time, end_time, counter_type
        FROM rounds
        WHERE id=$1
        FOR UPDATE`,
@@ -27,6 +89,7 @@ exports.submitOnlineVote = async ({ roundId, contestantId, email }) => {
     }
 
     const round = r.rows[0];
+    const showId = round.show_id;
 
     // 2) compute voting status
     const now = new Date();
@@ -65,11 +128,19 @@ exports.submitOnlineVote = async ({ roundId, contestantId, email }) => {
       throw new Error("Contestant is not in this round");
     }
 
-    // 6) insert vote
+    const emailLower = email.trim().toLowerCase();
+
+    // 6) insert into votes (show_id, email) - กันโหวตซ้ำต่อ show
+    await client.query(
+      `INSERT INTO votes (show_id, email) VALUES ($1, $2)`,
+      [showId, emailLower]
+    );
+
+    // 7) insert into online_votes
     await client.query(
       `INSERT INTO online_votes (round_id, contestant_id, voter_email)
        VALUES ($1, $2, $3)`,
-      [roundId, contestantId, email.toLowerCase()]
+      [roundId, contestantId, emailLower]
     );
 
     await client.query("COMMIT");
@@ -77,7 +148,12 @@ exports.submitOnlineVote = async ({ roundId, contestantId, email }) => {
     await client.query("ROLLBACK");
 
     if (err.code === "23505") {
-      throw new Error("This email has already voted in this round");
+      const isVotes = err.constraint && err.constraint.includes("votes");
+      throw new Error(
+        isVotes
+          ? "อีเมลนี้เคยโหวตในรายการนี้แล้ว"
+          : "This email has already voted in this round"
+      );
     }
 
     throw err;
@@ -222,23 +298,7 @@ exports.getRoomBySlug = async (publicSlug) => {
 };
 
 exports.checkIfUserVoted = async (publicSlug, email) => {
-  // Get round ID from public slug
-  const roundRes = await pool.query(
-    `SELECT id FROM rounds WHERE public_slug = $1`,
-    [publicSlug]
-  );
-
-  if (roundRes.rowCount === 0) {
-    throw new Error("Round not found");
-  }
-
-  const roundId = roundRes.rows[0].id;
-
-  // Check if user has voted in this round
-  const voteRes = await pool.query(
-    `SELECT id FROM online_votes WHERE round_id = $1 AND voter_email = $2 LIMIT 1`,
-    [roundId, email.toLowerCase()]
-  );
-
-  return voteRes.rowCount > 0;
+  const row = await exports.getRoundAndShowBySlug(publicSlug);
+  if (!row) throw new Error("Round not found");
+  return exports.hasVotedInShow(row.show_id, email);
 };

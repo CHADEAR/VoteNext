@@ -2,14 +2,29 @@
 const { pool } = require("../../config/db");
 
 async function findAdminByEmail(email) {
-  const result = await pool.query(
-    `SELECT id, email, password_hash, full_name, profile_img
-     FROM admins
-     WHERE email = $1`,
-    [email]
-  );
-
-  return result.rows[0] || null;
+  try {
+    const result = await pool.query(
+      `SELECT id, email, password_hash, full_name, profile_img
+       FROM admins
+       WHERE email = $1`,
+      [email]
+    );
+    return result.rows[0] || null;
+  } catch (err) {
+    if (err.code === "42703") {
+      // column "profile_img" does not exist (ยังไม่ได้รัน migration)
+      const result = await pool.query(
+        `SELECT id, email, password_hash, full_name
+         FROM admins
+         WHERE email = $1`,
+        [email]
+      );
+      const row = result.rows[0] || null;
+      if (row) row.profile_img = null;
+      return row;
+    }
+    throw err;
+  }
 }
 
 function verifyPassword(plainPassword, storedPasswordHash) {

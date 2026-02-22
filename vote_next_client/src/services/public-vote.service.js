@@ -49,15 +49,29 @@ export const getPublicVote = async (publicSlug) => {
 };
 
 
-export const submitVote = async (roundId, contestantId, email) => {
+/** ส่งโหวต (ต้องมี voteToken จาก verify-email) */
+export const submitVote = async (contestantId, voteToken) => {
   const response = await apiClient.post("/public/vote", {
-    roundId,        // ✅ ชื่อต้องตรง backend
     contestantId,
-    email,
+    voteToken,
   });
-  return response.data; // Return the response directly, not normalizePublicVote
+  return response.data;
 };
 
+/** ยืนยันอีเมลที่ Backend (format, MX, Hunter, ยังไม่เคยโหวต) → ได้ voteToken */
+export const verifyEmail = async (publicSlug, email) => {
+  try {
+    const response = await apiClient.post(
+      `/public/vote/${publicSlug}/verify-email`,
+      { email }
+    );
+    return response.data.voteToken;
+  } catch (err) {
+    const msg = err?.response?.data?.message;
+    if (msg) console.warn("[verify-email] Server:", msg);
+    throw err;
+  }
+};
 
 export const verifyVoter = async (voteId, email) => {
   try {
@@ -65,18 +79,19 @@ export const verifyVoter = async (voteId, email) => {
       email,
     });
     return normalizePublicVote(response.data.data);
-
   } catch (error) {
     console.error("Error verifying voter:", error);
     throw error;
   }
 };
 
-export const checkIfVoted = async (publicSlug, email) => {
+/** เช็คว่าโหวตแล้วหรือยัง (ส่ง email หรือ voteToken) */
+export const checkIfVoted = async (publicSlug, { email, voteToken } = {}) => {
   try {
-    const response = await apiClient.post(`/public/vote/${publicSlug}/check-vote`, {
-      email,
-    });
+    const response = await apiClient.post(
+      `/public/vote/${publicSlug}/check-vote`,
+      voteToken != null ? { voteToken } : { email }
+    );
     return response.data.hasVoted;
   } catch (error) {
     console.error("Error checking if voted:", error);
