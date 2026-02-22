@@ -61,9 +61,18 @@ exports.verifyEmail = async (req, res) => {
     });
   } catch (error) {
     console.error("verifyEmail error:", error);
+    
+    // กำหนด error message ให้เป็นภาษาไทยและชัดเจน
+    let errorMessage = error.message || "ไม่สามารถยืนยันอีเมลได้";
+    
+    // ถ้า error message เป็นภาษาอังกฤษ ให้ใช้เลย
+    if (error.message && !error.message.match(/[ก-ฮ]/)) {
+      errorMessage = error.message;
+    }
+    
     return res.status(400).json({
       success: false,
-      message: error.message || "ไม่สามารถยืนยันอีเมลได้",
+      message: errorMessage
     });
   }
 };
@@ -134,9 +143,18 @@ exports.submitVote = async (req, res) => {
     });
   } catch (error) {
     console.error("Error submitting vote:", error);
+    
+    // กำหนด error message ให้เป็นภาษาไทยและชัดเจน
+    let errorMessage = error.message || "ไม่สามารถโหวตได้";
+    
+    // ถ้า error message เป็นภาษาอังกฤษ ให้ใช้เลย
+    if (error.message && !error.message.match(/[ก-ฮ]/)) {
+      errorMessage = error.message;
+    }
+    
     return res.status(400).json({
       success: false,
-      message: error.message || "ไม่สามารถโหวตได้",
+      message: errorMessage
     });
   }
 };
@@ -154,9 +172,18 @@ exports.getLiveRank = async (req, res) => {
     });
   } catch (err) {
     console.error("getLiveRank error:", err);
+    
+    // กำหนด error message ให้เป็นภาษาไทยและชัดเจน
+    let errorMessage = err.message || "ไม่สามารถดึงข้อมูลอันดับได้";
+    
+    // ถ้า error message เป็นภาษาอังกฤษ ให้ใช้เลย
+    if (err.message && !err.message.match(/[ก-ฮ]/)) {
+      errorMessage = err.message;
+    }
+    
     res.status(400).json({
       success: false,
-      message: err.message,
+      message: errorMessage
     });
   }
 };
@@ -189,9 +216,18 @@ exports.checkIfVoted = async (req, res) => {
     });
   } catch (err) {
     console.error("checkIfVoted error:", err);
+    
+    // กำหนด error message ให้เป็นภาษาไทยและชัดเจน
+    let errorMessage = err.message || "ไม่สามารถตรวจสอบการโหวตได้";
+    
+    // ถ้า error message เป็นภาษาอังกฤษ ให้ใช้เลย
+    if (err.message && !err.message.match(/[ก-ฮ]/)) {
+      errorMessage = err.message;
+    }
+    
     res.status(400).json({
       success: false,
-      message: err.message,
+      message: errorMessage
     });
   }
 };

@@ -109,7 +109,7 @@ async function checkHunter(email, apiKey) {
       throw e;
     }
     console.warn("[Hunter] parse error", e.message, "body length:", body?.length);
-    throw new Error("การตรวจสอบอีเมลล้มเหลว (ข้อมูลตอบกลับไม่ถูกต้อง)");
+    throw new Error("การตรวจสอบอีเมลล้มเหลว");
   }
 }
 
