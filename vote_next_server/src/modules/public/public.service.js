@@ -14,7 +14,7 @@ exports.getRoundAndShowBySlug = async (publicSlug) => {
 };
 
 /**
- * Verify email for voting: format, MX, Hunter, และยังไม่เคยโหวตใน show นี้
+ * Verify email for voting: format, MX, Hunter, และยังไม่เคยโหวตใน round นี้
  * Returns { roundId, showId, email } for JWT payload on success.
  */
 exports.verifyEmailForVote = async (publicSlug, email, hunterApiKey) => {
@@ -30,9 +30,9 @@ exports.verifyEmailForVote = async (publicSlug, email, hunterApiKey) => {
     throw new Error("ไม่พบโพลนี้");
   }
 
-  const hasVoted = await exports.hasVotedInShow(roundAndShow.show_id, trimmed);
+  const hasVoted = await exports.hasVotedInRound(roundAndShow.round_id, trimmed);
   if (hasVoted) {
-    throw new Error("อีเมลนี้เคยโหวตในรายการนี้แล้ว");
+    throw new Error("อีเมลนี้เคยโหวตในรอบนี้แล้ว");
   }
 
   const mxOk = await emailVerification.checkMx(trimmed);
@@ -50,18 +50,18 @@ exports.verifyEmailForVote = async (publicSlug, email, hunterApiKey) => {
 };
 
 /**
- * เช็คว่า email นี้เคยโหวตใน show นี้หรือยัง (ตาราง votes)
+ * เช็คว่า email นี้เคยโหวตใน round นี้หรือยัง (ตาราง votes)
  */
-exports.hasVotedInShow = async (showId, email) => {
+exports.hasVotedInRound = async (roundId, email) => {
   const r = await pool.query(
-    `SELECT 1 FROM votes WHERE show_id = $1 AND email = $2 LIMIT 1`,
-    [showId, email.trim().toLowerCase()]
+    `SELECT 1 FROM votes WHERE round_id = $1 AND email = $2 LIMIT 1`,
+    [roundId, email.trim().toLowerCase()]
   );
   return r.rowCount > 0;
 };
 
 /**
- * Submit online vote (email from JWT voteToken; also insert into votes for show-level uniqueness)
+ * Submit online vote (email from JWT voteToken; also insert into votes for round-level uniqueness)
  */
 exports.submitOnlineVote = async ({ roundId, contestantId, email }) => {
   if (!roundId || !contestantId || !email) {
@@ -127,10 +127,10 @@ exports.submitOnlineVote = async ({ roundId, contestantId, email }) => {
 
     const emailLower = email.trim().toLowerCase();
 
-    // 6) insert into votes (show_id, email) - กันโหวตซ้ำต่อ show
+    // 6) insert into votes (round_id, email) - กันโหวตซ้ำต่อ round
     await client.query(
-      `INSERT INTO votes (show_id, email) VALUES ($1, $2)`,
-      [showId, emailLower]
+      `INSERT INTO votes (round_id, email) VALUES ($1, $2)`,
+      [roundId, emailLower]
     );
 
     // 7) insert into online_votes
@@ -297,5 +297,5 @@ exports.getRoomBySlug = async (publicSlug) => {
 exports.checkIfUserVoted = async (publicSlug, email) => {
   const row = await exports.getRoundAndShowBySlug(publicSlug);
   if (!row) throw new Error("Round not found");
-  return exports.hasVotedInShow(row.show_id, email);
+  return exports.hasVotedInRound(row.round_id, email);
 };

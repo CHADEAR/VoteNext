@@ -36,8 +36,8 @@ async function checkHunter(email, apiKey) {
   const hunterKey = apiKey || process.env.HUNTER_API_KEY;
   
   if (!hunterKey) {
-    console.warn("HUNTER_API_KEY not set, skipping Hunter check");
-    console.warn("Please add HUNTER_API_KEY to your .env file");
+    console.warn("HUNTER_API_KEY not set, skipping Hunter check for development");
+    console.warn("Email verification will proceed with format and MX checks only");
     return true;
   }
   
