@@ -29,7 +29,6 @@ export default function AdminDashboardPage() {
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
 
-  // ✅ ต้องอยู่ระดับ component เพื่อให้เรียกซ้ำได้
   const fetchRooms = async () => {
     try {
       setLoading(true);
