@@ -93,7 +93,7 @@ export default function VotePublicPage() {
     // Use different URLs for development vs production
     const socketUrl = window.location.hostname === 'localhost' 
       ? 'http://localhost:4000'
-      : 'https://votenext.onrender.com/api'; // Replace with your backend URL
+      : 'https://votenext.onrender.com'; // Connect to base server URL for Socket.IO
     
     const socket = io(socketUrl, {
       transports: ['polling', 'websocket'], // Try polling first, then websocket
