@@ -94,9 +94,6 @@
 
 .rank-list {
   width: 85%;
-  display: grid;
-  gap: clamp(8px, 1.5vw, 20px);
-  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
   margin-top: 3%;
 }
 

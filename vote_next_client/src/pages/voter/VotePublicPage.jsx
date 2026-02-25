@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { getPublicVote, submitVote } from "../../services/public-vote.service";
+import { getPublicVote, submitVote, checkIfVoted } from "../../services/public-vote.service";
+import { VOTE_TOKEN_KEY } from "./VoteEnterEmailPage";
+import { io } from "socket.io-client";
 import ContestantCard from "../../components/voter/ContestantCard";
 import ConfirmVoteModal from "../../components/voter/ConfirmVoteModal";
 import VoteSuccessModal from "../../components/voter/VoteSuccessModal";
@@ -34,19 +36,41 @@ export default function VotePublicPage() {
   const [loading, setLoading] = useState(true);
   const [voting, setVoting] = useState(false);
   const [error, setError] = useState("");
+  const [checkingVote, setCheckingVote] = useState(true);
 
   const [selectedContestant, setSelectedContestant] = useState(null);
   const [showConfirm, setShowConfirm] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  /** โหวตสำเร็จใน session นี้ — อย่า redirect ไปหน้า email แม้ token จะถูกลบแล้ว */
+  const [hasVotedThisSession, setHasVotedThisSession] = useState(false);
 
-  const EMAIL_KEY = `vote_next_email_${publicSlug}`;
-  const email = localStorage.getItem(EMAIL_KEY);
+  const voteToken = sessionStorage.getItem(VOTE_TOKEN_KEY(publicSlug));
 
   useEffect(() => {
-    if (!email) {
+    if (!voteToken && !hasVotedThisSession) {
       window.location.href = `/vote/${publicSlug}/email`;
       return;
     }
+    if (hasVotedThisSession) return;
+
+    const checkVoteStatus = async () => {
+      try {
+        setCheckingVote(true);
+        const hasVoted = await checkIfVoted(publicSlug, { voteToken });
+
+        if (hasVoted) {
+          navigate(`/vote/${publicSlug}/rank`);
+          return;
+        }
+
+        await load();
+      } catch (err) {
+        console.error("Error checking vote status:", err);
+        await load();
+      } finally {
+        setCheckingVote(false);
+      }
+    };
 
     const load = async () => {
       try {
@@ -61,8 +85,52 @@ export default function VotePublicPage() {
       }
     };
 
-    load();
-  }, [publicSlug, email]);
+    checkVoteStatus();
+    
+    // Setup Socket.IO for realtime updates
+    console.log('🔌 Initializing Socket.IO connection in VotePublicPage...');
+    
+    // Use different URLs for development vs production
+    const socketUrl = window.location.hostname === 'localhost' 
+      ? 'http://localhost:4000'
+      : 'https://votenext.onrender.com'; // Connect to base server URL for Socket.IO
+    
+    const socket = io(socketUrl, {
+      transports: ['polling', 'websocket'], // Try polling first, then websocket
+      timeout: 10000,
+      forceNew: false, // Don't force new connection to avoid conflicts
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000
+    });
+    
+    socket.on('vote_update', (data) => {
+      console.log('📨 Vote update received in VotePublicPage:', data);
+      // Refresh poll data to get updated contestant vote counts
+      load();
+    });
+    
+    socket.on('connect', () => {
+      console.log('🔌 Connected to realtime voting (VotePublicPage)');
+    });
+    
+    socket.on('connect_error', (error) => {
+      console.error('🔌 Socket connection error (VotePublicPage):', error);
+    });
+    
+    socket.on('disconnect', (reason) => {
+      console.log('🔌 Disconnected from realtime voting (VotePublicPage):', reason);
+    });
+    
+    socket.on('reconnect', (attemptNumber) => {
+      console.log('🔌 Reconnected in VotePublicPage, attempt:', attemptNumber);
+    });
+    
+    return () => {
+      console.log('🔌 Cleaning up Socket.IO connection in VotePublicPage...');
+      socket.disconnect();
+    };
+  }, [publicSlug, voteToken, hasVotedThisSession]);
 
   // ========= POLL NORMALIZER ========= //
   function normalizePoll(raw) {
@@ -112,18 +180,20 @@ export default function VotePublicPage() {
   }
 
   async function handleConfirmVote() {
-    if (!selectedContestant || !poll?.id) return;
+    if (!selectedContestant || !poll?.id || !voteToken) return;
     if (!isVotingOpen) return;
 
     try {
       setVoting(true);
-      await submitVote(poll.id, selectedContestant.id, email);
+      await submitVote(selectedContestant.id, voteToken);
       setShowConfirm(false);
       setShowSuccess(true);
       setError("");
+      setHasVotedThisSession(true);
+      sessionStorage.removeItem(VOTE_TOKEN_KEY(publicSlug));
     } catch (err) {
       console.error(err);
-      setError("โหวตไม่สำเร็จ กรุณาลองใหม่");
+      setError(err?.response?.data?.message || "โหวตไม่สำเร็จ กรุณาลองใหม่");
     } finally {
       setVoting(false);
     }
@@ -144,11 +214,9 @@ export default function VotePublicPage() {
 
   return (
     <div className="vote-page">
-      <header className="vote-header">
-        <div className="vote-logo">VOTE NEXT</div>
-      </header>
 
-      {loading && <div className="vote-status">กำลังโหลด...</div>}
+      {checkingVote && <div className="vote-status">กำลังตรวจสอบสถานะการโหวต...</div>}
+      {loading && !checkingVote && <div className="vote-status">กำลังโหลด...</div>}
       {error && <div className="vote-status error">{error}</div>}
 
       {/* MAIN */}
@@ -163,7 +231,7 @@ export default function VotePublicPage() {
           {!isVotingOpen && (
             <>
               {poll.computedStatus === "pending" && poll.isManual && (
-                <div className="vote-status warning">ยังไม่เริ่มโหวต</div>
+                <div className="vote-status warning">Coming soon</div>
               )}
 
               {poll.computedStatus === "pending" && poll.isAuto && poll.startInFuture && (
@@ -204,11 +272,9 @@ export default function VotePublicPage() {
 
       <VoteSuccessModal
         open={showSuccess}
-        onClose={() => {
-          localStorage.removeItem(EMAIL_KEY);
-          setShowSuccess(false);
-        }}
+        onClose={() => setShowSuccess(false)}
         onViewResult={() => {
+          sessionStorage.removeItem(VOTE_TOKEN_KEY(publicSlug));
           navigate(`/vote/${publicSlug}/rank`);
         }}
       />

@@ -1,29 +1,52 @@
 // src/pages/voter/VoteEnterEmailPage.jsx
-import React, { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import logo from '../../assets/Black_White_Modern_Bold_Design_Studio_Logo-removebg-preview.png';
-import './VoteEnterEmailPage.css';
+import React, { useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import logo from "../../assets/Black_White_Modern_Bold_Design_Studio_Logo-removebg-preview.png";
+import { verifyEmail, checkIfVoted } from "../../services/public-vote.service";
+import "./VoteEnterEmailPage.css";
 
-
+const VOTE_TOKEN_KEY = (slug) => `vote_next_token_${slug}`;
+export { VOTE_TOKEN_KEY };
 
 export default function VoteEnterEmailPage() {
   const { publicSlug } = useParams();
-  const EMAIL_KEY = `vote_next_email_${publicSlug}`;
   const navigate = useNavigate();
 
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-
-    if (!email || !email.includes("@")) {
-      setError("กรุณากรอก email ให้ถูกต้อง");
+    if (!email || !email.trim()) {
+      setError("กรุณากรอกอีเมล");
       return;
     }
-
-    localStorage.setItem(EMAIL_KEY, email);
-    navigate(`/vote/${publicSlug}`);
+    setError("");
+    setLoading(true);
+    const trimmedEmail = email.trim();
+    try {
+      const hasVoted = await checkIfVoted(publicSlug, { email: trimmedEmail });
+      if (hasVoted) {
+        navigate(`/vote/${publicSlug}/rank`);
+        return;
+      }
+      const voteToken = await verifyEmail(publicSlug, trimmedEmail);
+      sessionStorage.setItem(VOTE_TOKEN_KEY(publicSlug), voteToken);
+      navigate(`/vote/${publicSlug}`);
+    } catch (err) {
+      const msg =
+        err?.response?.data?.message ||
+        err?.message ||
+        "ยืนยันอีเมลไม่สำเร็จ กรุณาลองใหม่";
+      if (msg.includes("เคยโหวต") || msg.includes("already voted")) {
+        navigate(`/vote/${publicSlug}/rank`);
+        return;
+      }
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -44,8 +67,12 @@ export default function VoteEnterEmailPage() {
 
           {error && <div className="error-message">{error}</div>}
           <h5>Enter email for vote </h5>
-          <button type="submit" className="submit-button">
-            Vote now
+          <button
+            type="submit"
+            className="submit-button"
+            disabled={loading}
+          >
+            {loading ? "กำลังตรวจสอบ..." : "Vote now"}
           </button>
         </form>
       </main>

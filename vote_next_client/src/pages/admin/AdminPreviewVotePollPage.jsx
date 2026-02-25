@@ -1,23 +1,26 @@
 // src/pages/admin/AdminPreviewVotePollPage.jsx
 
 import React, { useEffect, useState } from "react";
-import { useLocation, useNavigate, Navigate } from "react-router-dom";
-import apiClient from "../../api/apiClient";
+import { useParams, useNavigate, useLocation, Navigate } from "react-router-dom";
 import PreviewPollCard from "../../components/admin/preview/PreviewPollCard";
 import PreviewContestantGrid from "../../components/admin/preview/PreviewContestantGrid";
 import PreviewTimeSetting from "../../components/admin/preview/PreviewTimeSetting";
 import PreviewShareBox from "../../components/admin/preview/PreviewShareBox";
 import Navbar from "../../components/layout/Navbar";
+import { io } from "socket.io-client";
+import apiClient from "../../api/apiClient";
+import { clearAdminSession } from "../../services/auth.service";
 import "./AdminPreviewVotePollPage.css";
 
 export default function AdminPreviewVotePollPage() {
+  const params = useParams();
   const location = useLocation();
   const navigate = useNavigate();
   const room = location.state?.room;
 
   // Safety guard
   if (!room || !room.data || !room.data.show || !room.data.round) {
-    return <Navigate to="/admin/dashboard" replace />;
+    return <Navigate to="/" replace />;
   }
 
   const show = room.data.show;
@@ -42,14 +45,57 @@ export default function AdminPreviewVotePollPage() {
     }
   };
 
-  // Polling every 2s
+  // Socket.IO connection for realtime updates
   useEffect(() => {
-    const interval = setInterval(fetchRound, 2000);
-    return () => clearInterval(interval);
+    // Initial fetch
+    fetchRound();
+    
+    // Setup Socket.IO connection
+    console.log('🔌 Admin initializing Socket.IO connection...');
+    
+    // Use different URLs for development vs production
+    const socketUrl = window.location.hostname === 'localhost' 
+      ? 'http://localhost:4000'
+      : 'https://votenext.onrender.com/api'; // Replace with your backend URL
+    
+    const socket = io(socketUrl, {
+      transports: ['polling', 'websocket'], // Try polling first, then websocket
+      timeout: 10000,
+      forceNew: false, // Don't force new connection to avoid conflicts
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000
+    });
+    
+    socket.on('vote_update', (data) => {
+      console.log('📨 Admin received vote update:', data);
+      fetchRound(); // Fetch updated round data when vote occurs
+    });
+    
+    socket.on('connect', () => {
+      console.log('🔌 Admin connected to realtime voting');
+    });
+    
+    socket.on('connect_error', (error) => {
+      console.error('🔌 Admin socket connection error:', error);
+    });
+    
+    socket.on('disconnect', (reason) => {
+      console.log('🔌 Admin disconnected from realtime voting:', reason);
+    });
+    
+    socket.on('reconnect', (attemptNumber) => {
+      console.log('🔌 Admin reconnected, attempt:', attemptNumber);
+    });
+    
+    return () => {
+      console.log('🔌 Admin cleaning up Socket.IO connection...');
+      socket.disconnect();
+    };
   }, []);
 
   const handleLogout = () => {
-    localStorage.removeItem("votenext_admin");
+    clearAdminSession();
     navigate("/admin/login");
   };
 
@@ -86,9 +132,10 @@ export default function AdminPreviewVotePollPage() {
   }));
 
   return (
+  <div>
+    <Navbar showProfile onLogout={handleLogout} />
     <div className="preview-container">
-      <Navbar showProfile onLogout={handleLogout} />
-
+      
       <h1 className="preview-title">Preview & Start Vote Poll</h1>
 
       <PreviewPollCard title={show.title} description={show.description} />
@@ -107,6 +154,7 @@ export default function AdminPreviewVotePollPage() {
           status={round.status}
           roundId={round.id}
           onRefresh={fetchRound}
+          manualStartTime={round.start_time}
         />
       </div>
 
@@ -123,5 +171,6 @@ export default function AdminPreviewVotePollPage() {
         </button>
       </div>
     </div>
+  </div>
   );
 }

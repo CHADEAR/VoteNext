@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { getRooms } from "../../services/rooms.service";
 import { deleteRoom } from "../../api/rooms.api";
+import { clearAdminSession } from "../../services/auth.service";
 import { FiEye, FiShare2, FiEdit, FiTrash2 } from "react-icons/fi";
 import { FaSearch } from "react-icons/fa";
 import Navbar from "../../components/layout/Navbar";
@@ -28,7 +29,6 @@ export default function AdminDashboardPage() {
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
 
-  // ✅ ต้องอยู่ระดับ component เพื่อให้เรียกซ้ำได้
   const fetchRooms = async () => {
     try {
       setLoading(true);
@@ -121,7 +121,7 @@ export default function AdminDashboardPage() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("votenext_admin");
+    clearAdminSession();
     navigate("/admin/login");
   };
 

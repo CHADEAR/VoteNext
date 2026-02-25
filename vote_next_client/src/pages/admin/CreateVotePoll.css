@@ -1,3 +1,11 @@
+*{
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: #333;
+}
+
 /* ===============================
    Base Layout
 ================================ */
@@ -308,6 +316,15 @@ textarea {
   transition: all 0.2s ease;
 }
 
+.btn,
+.create-btn {
+  min-width: 160px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .btn-secondary {
   background-color: #f1f1f1;
   color: #333;
@@ -316,6 +333,11 @@ textarea {
 .btn-secondary:hover {
   background-color: #e5e5e5;
 }
+
+.btn.btn-secondary {
+  border-radius: 8px;
+}
+
 
 .create-btn,
 .btn-primary {

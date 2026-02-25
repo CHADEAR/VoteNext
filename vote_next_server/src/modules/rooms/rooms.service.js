@@ -291,9 +291,9 @@ async function deleteRoom(roundId) {
   try {
     await client.query('BEGIN');
 
-    // 1) หา show_id จาก round
+    // 1) ตรวจสอบว่า round มีอยู่จริง
     const roundRes = await client.query(
-      `SELECT show_id FROM rounds WHERE id = $1`,
+      `SELECT id FROM rounds WHERE id = $1`,
       [roundId]
     );
 
@@ -301,12 +301,10 @@ async function deleteRoom(roundId) {
       throw new Error('Round not found');
     }
 
-    const showId = roundRes.rows[0].show_id;
-
-    // 2) ลบ show → cascade ทุก table ที่เกี่ยวข้อง
+    // 2) ลบเฉพาะ round นี้ → cascade จะลบข้อมูลที่เกี่ยวข้องกับ round นี้เท่านั้น
     await client.query(
-      `DELETE FROM shows WHERE id = $1`,
-      [showId]
+      `DELETE FROM rounds WHERE id = $1`,
+      [roundId]
     );
 
     await client.query('COMMIT');

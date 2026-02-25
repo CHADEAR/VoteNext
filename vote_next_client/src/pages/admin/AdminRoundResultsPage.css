@@ -1,3 +1,11 @@
+*{
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: #333;
+}
+
 .round-results {
   min-height: 100vh;
   background: #f7f4ef;
@@ -26,14 +34,15 @@
   border: none;
   font-weight: 500;
   cursor: pointer;
+  color: #f9fafb;
 }
 
 .round-results__action--compute {
-  background: #cde7ff;
+  background: rgb(59, 130, 246);
 }
 
 .round-results__action--next {
-  background: #b6f3c1;
+  background: rgb(59, 130, 246);
 }
 
 .round-results__action--disabled {

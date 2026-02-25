@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { getLiveRankBySlug } from "../../api/rank.api";
+import { io } from "socket.io-client";
 import "./VoteRankPage.css";
 
 export default function VoteRankPage() {
@@ -22,9 +23,55 @@ export default function VoteRankPage() {
   };
 
   useEffect(() => {
+    // Initial fetch
     fetchRank();
-    const timer = setInterval(fetchRank, 3000);
-    return () => clearInterval(timer);
+    
+    // Setup Socket.IO connection for realtime updates
+    console.log('🔌 Initializing Socket.IO connection...');
+    
+    // Use different URLs for development vs production
+    const socketUrl = window.location.hostname === 'localhost' 
+      ? 'http://localhost:4000'
+      : 'https://votenext.onrender.com/api'; // Replace with your backend URL
+    
+    const socket = io(socketUrl, {
+      transports: ['polling', 'websocket'], // Try polling first, then websocket
+      timeout: 10000,
+      forceNew: false, // Don't force new connection to avoid conflicts
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000
+    });
+    
+    socket.on('vote_update', (data) => {
+      console.log('📨 Received vote update:', data);
+      fetchRank(); // Fetch updated rankings when vote occurs
+    });
+    
+    socket.on('connect', () => {
+      console.log('🔌 Connected to realtime voting');
+    });
+    
+    socket.on('connect_error', (error) => {
+      console.error('🔌 Socket connection error:', error);
+    });
+    
+    socket.on('disconnect', (reason) => {
+      console.log('🔌 Disconnected from realtime voting:', reason);
+    });
+    
+    socket.on('reconnect', (attemptNumber) => {
+      console.log('🔌 Reconnected to realtime voting, attempt:', attemptNumber);
+    });
+    
+    socket.on('reconnect_attempt', (attemptNumber) => {
+      console.log('🔌 Reconnecting to realtime voting, attempt:', attemptNumber);
+    });
+    
+    return () => {
+      console.log('🔌 Cleaning up Socket.IO connection...');
+      socket.disconnect();
+    };
   }, [publicSlug]);
 
   if (loading) return <div className="rank-loading">Loading...</div>;
@@ -37,13 +84,13 @@ export default function VoteRankPage() {
   let computed = rankings;
 
   if (!hasRanks) {
-    // compute live score
+    // compute live score - แสดงทุกคนไม่ว่าจะมีคะแนนหรือไม่
     computed = rankings.map(r => ({
       ...r,
       live_score: Number(r.online_votes || 0) + Number(r.remote_votes || 0)
     }));
 
-    // sort by live score desc
+    // sort by live score desc - คนที่ไม่มีคะแนนจะอยู่ล่างสุด
     computed = computed.slice().sort((a, b) => b.live_score - a.live_score);
 
     // assign shared rank
@@ -72,16 +119,16 @@ export default function VoteRankPage() {
       : `${Number(r.live_score || 0)} Vote`;
 
   // ===========================================
-  // 🎤 Podium (2 | 1 | 3)
+  // 🎤 Podium (2 | 1 | 3) - แสดง 3 อันดับแรก
   // ===========================================
-  const top3 = computed.filter(r => r.rank <= 3);
-  const rest = computed.filter(r => r.rank > 3);
+  const top3 = computed.slice(0, 3); // 3 อันดับแรกจากการเรียงลำดับ
+  const rest = computed.slice(3); // ที่เหลือนับจากอันดับที่ 4 เป็นต้นไป
 
   const podiumOrder = [
-    top3.find(r => r.rank === 2),
-    top3.find(r => r.rank === 1),
-    top3.find(r => r.rank === 3),
-  ].filter(Boolean);
+    top3[1], // อันดับ 2 (index 1)
+    top3[0], // อันดับ 1 (index 0) 
+    top3[2], // อันดับ 3 (index 2)
+  ].filter(Boolean); // กรองค่า undefined/null ออก
 
   return (
     <div className="rank-page">
@@ -89,10 +136,10 @@ export default function VoteRankPage() {
 
       {/* Podium */}
       <div className="rank-podium">
-        {podiumOrder.map((c) => (
-          <div key={c.id} className={`podium-item podium-r${c.rank}`}>
+        {podiumOrder.map((c, index) => (
+          <div key={c.id} className={`podium-item podium-r${index === 1 ? 1 : index === 0 ? 2 : 3}`}>
             <div className="podium-rank-badge">
-              {c.rank}
+              {index === 1 ? 1 : index === 0 ? 2 : 3}
             </div>
 
             <div className="podium-avatar">
@@ -114,9 +161,9 @@ export default function VoteRankPage() {
 
       {/* Rank List */}
       <div className="rank-list">
-        {rest.map((c) => (
+        {rest.map((c, index) => (
           <div key={c.id} className="rank-row">
-            <span className="rank-index">{c.rank}</span>
+            <span className="rank-index">{index + 4}</span>
 
             <div className="rank-avatar">
               {c.image_url ? (

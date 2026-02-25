@@ -9,6 +9,24 @@
   z-index: 100;
 }
 
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logo-link {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.logo-link:focus-visible {
+  outline: 3px solid #f0c24d;
+  outline-offset: 4px;
+  border-radius: 8px;
+}
+
 .logo-img {
   height: 40px;
   width: auto;
@@ -16,6 +34,26 @@
 
 .profile-wrapper {
   position: relative;
+}
+
+.topbar-link {
+  text-decoration: none;
+  font-weight: 600;
+  color: #2f2f2f;
+  background: #fff8e3;
+  border: 1px solid #f0c24d;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 14px;
+}
+
+.topbar-link:hover {
+  background: #ffe8b0;
+}
+
+.topbar-link:focus-visible {
+  outline: 3px solid #f0c24d;
+  outline-offset: 2px;
 }
 
 .profile-btn {
@@ -27,11 +65,13 @@
   overflow: hidden;
   width: 44px;
   height: 44px;
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   background-color: #f5f5f5;
   transition: all 0.2s;
+  outline: 1px solid #f0c24d;
 }
 
 .profile-btn:hover {
@@ -39,10 +79,15 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-.profile-img {
+/* รูปเต็มกรอบทันที ไม่ต้องรอ hover */
+.profile-btn .profile-img {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center;
+  display: block;
 }
 
 .person-icon-small {
@@ -81,10 +126,15 @@
   justify-content: center;
 }
 
-.avatar-img {
+/* รูปเต็มวงกลมทันที ไม่ต้องรอ hover */
+.profile-avatar .avatar-img {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center;
+  display: block;
 }
 
 .camera {
@@ -133,6 +183,69 @@
   background: #e6d75d;
   transform: translateY(-1px);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.profile-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 15px;
+  text-align: center;
+}
+
+/* Profile Image Styles - รูปเต็มกรอบ ไม่บิด */
+.profile-btn .profile-img {
+  border-radius: 50%;
+  transition: transform 0.2s ease;
+}
+
+.profile-btn:hover .profile-img {
+  transform: scale(1.05);
+}
+
+.profile-avatar .avatar-img {
+  border-radius: 50%;
+  transition: transform 0.2s ease;
+}
+
+.profile-avatar .avatar-img:hover {
+  transform: scale(1.02);
+}
+
+.person-icon-small {
+  color: #4a3faf;
+  transition: transform 0.2s ease;
+}
+
+.person-icon-small:hover {
+  transform: scale(1.1);
+}
+
+.person-icon {
+  color: #6c757d;
+  margin-bottom: 10px;
+}
+
+.camera {
+  position: absolute;
+  bottom: 5px;
+  right: 5px;
+  background: #4a3faf;
+  color: white;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 2px solid white;
+}
+
+.camera:hover {
+  background: #3a2e8f;
+  transform: scale(1.1);
 }
 
 /* Responsive adjustments */
