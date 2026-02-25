@@ -7,7 +7,6 @@ graph TB
     subgraph "External Actors"
         A[Admin]
         B[Public User]
-        C[Remote Device]
     end
     
     subgraph "External Services"
@@ -26,7 +25,6 @@ graph TB
     
     A --> H
     B --> H
-    C --> H
     H --> D
     H --> E
     H --> F
