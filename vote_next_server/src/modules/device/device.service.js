@@ -1,57 +1,59 @@
 // vote_next_server/src/modules/device/device.service.js
 const DeviceModel = require("./device.model");
 
-// เก็บสถานะ active แบบ in-memory (ช่วยให้ push ไปหาอุปกรณ์ได้ทันที)
-const activeByShow = new Map(); // showId -> payload
+let _wss = null;
+const _activePollByShow = new Map();
 
-let wssRef = null;
 function attachWss(wss) {
-  wssRef = wss;
+  _wss = wss;
 }
 
-function broadcast(obj) {
-  if (!wssRef) return;
-  const msg = JSON.stringify(obj);
-  wssRef.clients.forEach((c) => {
+function broadcast(type, payload) {
+  if (!_wss) return;
+  const msg = JSON.stringify({ type, payload });
+  _wss.clients.forEach((c) => {
     if (c.readyState === 1) c.send(msg);
   });
 }
 
-// admin เรียกตอน "เปิดโหวต"
 function setActivePoll(showId, payload) {
-  activeByShow.set(String(showId), payload);
-  broadcast({ type: "poll_open", payload });
+  const sid = String(showId);
+  _activePollByShow.set(sid, payload);
+
+  // ส่งให้ TFT ได้ทั้ง 2 แบบ กันพัง
+  broadcast("active", payload);
+  broadcast("poll_open", payload);
 }
 
-// admin เรียกตอน "ปิดโหวต"
 function closePoll(showId) {
-  activeByShow.delete(String(showId));
-  broadcast({ type: "poll_close", payload: { showId: String(showId) } });
+  const sid = String(showId);
+  _activePollByShow.delete(sid);
+  broadcast("poll_close", { showId: sid });
 }
 
-// device เรียกเพื่อขอสถานะปัจจุบัน
 async function getActivePoll(showId) {
-  const key = String(showId);
-  if (activeByShow.has(key)) return activeByShow.get(key);
+  const sid = String(showId);
+  if (_activePollByShow.has(sid)) return _activePollByShow.get(sid);
 
-  // fallback: ดึงจาก DB ตาม schema จริง
-  const round = await DeviceModel.getCurrentVotingRound(showId);
+  // fallback: ดึงจาก DB
+  const round = await DeviceModel.getCurrentVotingRound(sid);
   if (!round) return null;
 
-  const contestants = await DeviceModel.getContestantsByShow(showId, 4);
+  const contestants = await DeviceModel.getContestantsByRound(String(round.id), 4);
+
   const payload = {
-    showId: String(showId),
+    showId: sid,
     roundId: String(round.id),
     title: round.round_name || "Voting",
     open: true,
-    choices: contestants.map((c) => ({
+    choices: (contestants || []).map((c) => ({
       id: String(c.id),
       label: c.stage_name,
       imageUrl: c.image_url || "",
     })),
   };
 
-  activeByShow.set(key, payload);
+  _activePollByShow.set(sid, payload);
   return payload;
 }
 
