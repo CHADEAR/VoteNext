@@ -1,7 +1,6 @@
 // vote_next_server/src/routes/index.js
 const express = require("express");
 
-const healthRoutes = require("../modules/health/health.routes");
 const adminRoutes  = require("../modules/admin/admin.routes");
 const showRoutes   = require("../modules/shows/shows.routes");
 const roomRoutes   = require("../modules/rooms/rooms.routes");

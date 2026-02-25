@@ -12,7 +12,6 @@ const DeviceService = require("../device/device.service");
 
 const router = express.Router();
 const controller = require("./admin.controller");
-const { openPoll, closePoll } = require("./admin.poll.controller"); // เพิ่ม
 
 // POST /api/admin/login
 router.post("/login", express.json(), adminLogin);
