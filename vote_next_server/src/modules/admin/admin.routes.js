@@ -33,7 +33,7 @@ router.post("/polls/open-round", express.json(), verifyAdminToken, openRoundPoll
 // ปิดโพลของ show
 router.post("/polls/close-show", express.json(), verifyAdminToken, closeShowPoll);
 
-// ดู active poll (เผื่อหน้า admin ใช้)
+// ดู active poll 
 router.get("/polls/active", verifyAdminToken, async (req, res) => {
   const showId = String(req.query.showId || "");
   if (!showId) return res.status(400).json({ ok: false, message: "showId required" });
