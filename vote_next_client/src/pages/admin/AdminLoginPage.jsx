@@ -38,9 +38,10 @@ export default function AdminLoginPage() {
 
     try {
       setLoading(true);
-      const admin = await adminLogin({ email, password });
+      const { admin, token } = await adminLogin({ email, password });
 
       localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify(admin));
+      localStorage.setItem('adminToken', token);
 
       setInfo("Login สำเร็จ กำลังเปลี่ยนหน้า...");
       navigate(from, { replace: true });

@@ -29,7 +29,10 @@ export function clearAdminSession() {
 // Business logic wrapper for admin auth
 export async function adminLogin({ email, password }) {
   const res = await login({ email, password });
-  return res.data;
+  return {
+    admin: res.data.admin,
+    token: res.data.token
+  };
 }
 
 export async function resetPassword(email, newPassword) {

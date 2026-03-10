@@ -21,17 +21,29 @@ const Navbar = ({ showProfile = false, onLogout }) => {
   // ดึงข้อมูล admin จาก localStorage เมื่อ component mount
   useEffect(() => {
     const admin = getAdminFromStorage();
+    console.log("🔍 [Navbar Debug] Admin from localStorage:", admin);
     
     if (admin) {
-      setAdminInfo(admin);
+      // ตรวจสอบว่าเป็น object แบบเก่า (มี admin property) หรือใหม่ (admin data ตรง)
+      let adminData = admin;
+      if (admin.admin) {
+        // กรณีเก่า - มี property admin
+        console.log("🔍 [Navbar Debug] Found old format, extracting admin property");
+        adminData = admin.admin;
+      }
       
+      console.log("🔍 [Navbar Debug] Final adminData:", adminData);
+      console.log("🔍 [Navbar Debug] adminData.email =", adminData.email);
+      
+      setAdminInfo(adminData);
+
       // ดึง profile image ถ้ามี - จัดการกรณีที่เป็น object หรือ string
-      if (admin.profile_img) {
-        let profileImageUrl = admin.profile_img;
+      if (adminData.profile_img) {
+        let profileImageUrl = adminData.profile_img;
         
         // ถ้า profile_img เป็น object ให้ดึง imageUrl
-        if (typeof admin.profile_img === 'object' && admin.profile_img.imageUrl) {
-          profileImageUrl = admin.profile_img.imageUrl;
+        if (typeof adminData.profile_img === 'object' && adminData.profile_img.imageUrl) {
+          profileImageUrl = adminData.profile_img.imageUrl;
           console.log('🔧 [Mount Debug] profile_img is object, extracting imageUrl:', profileImageUrl);
         } else if (typeof admin.profile_img === 'string') {
           profileImageUrl = admin.profile_img;

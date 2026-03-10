@@ -19,6 +19,8 @@ async function adminLogin(req, res, next) {
     }
 
     const admin = await findAdminByEmail(email);
+    console.log("DEBUG: Found admin =", admin);
+    console.log("DEBUG: Requested email =", email);
 
     if (!admin) {
       return res
@@ -48,6 +50,16 @@ async function adminLogin(req, res, next) {
     return res.json({
       success: true,
       token,
+      admin: {
+        id: admin.id,
+        email: admin.email,
+        full_name: admin.full_name,
+        profile_img: admin.profile_img
+      }
+    });
+    
+    console.log("RESPONSE SENT:", {
+      success: true,
       admin: {
         id: admin.id,
         email: admin.email,
@@ -116,6 +128,16 @@ async function updateProfile(req, res, next) {
         .json({ error: true, message: "กรุณาระบุ adminId และ profile_img" });
     }
 
+    // ดึงข้อมูล admin ปัจจุบันจาก database เพื่อให้ตรงกับตอน login
+    console.log("DEBUG: req.admin =", req.admin);
+    const admin = await findAdminByEmail(req.admin.email);
+    
+    if (!admin) {
+      return res
+        .status(404)
+        .json({ error: true, message: "ไม่พบข้อมูล admin" });
+    }
+
     // อัพเดตรูปภาพใน database
     const success = await updateAdminProfileImage(adminId, profile_img);
 
@@ -127,8 +149,20 @@ async function updateProfile(req, res, next) {
     
     console.log(`Profile image updated for admin ID: ${adminId}`);
     
+    // สร้าง token ใหม่จากข้อมูล admin เดียวกับตอน login
+    const payload = {
+      id: admin.id,
+      email: admin.email,
+      full_name: admin.full_name,
+      type: 'admin'
+    };
+    
+    const secret = env.JWT_SECRET || "votenext-admin-secret";
+    const newToken = jwt.sign(payload, secret, { expiresIn: '24h' });
+    
     return res.json({
       success: true,
+      token: newToken,
       message: "อัพเดตรูปภาพสำเร็จแล้ว"
     });
   } catch (err) {
