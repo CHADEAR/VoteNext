@@ -1,4 +1,6 @@
 // vote_next_server/src/modules/admin/admin.controller.js
+const jwt = require("jsonwebtoken");
+const env = require("../../config/env");
 const {
   findAdminByEmail,
   verifyPassword,
@@ -32,11 +34,26 @@ async function adminLogin(req, res, next) {
         .json({ error: true, message: "Invalid email or password" });
     }
 
-    return res.json({
+    // Generate JWT token
+    const payload = {
       id: admin.id,
       email: admin.email,
       full_name: admin.full_name,
-      profile_img: admin.profile_img
+      type: 'admin'
+    };
+    
+    const secret = env.JWT_SECRET || "votenext-admin-secret";
+    const token = jwt.sign(payload, secret, { expiresIn: '24h' });
+
+    return res.json({
+      success: true,
+      token,
+      admin: {
+        id: admin.id,
+        email: admin.email,
+        full_name: admin.full_name,
+        profile_img: admin.profile_img
+      }
     });
   } catch (err) {
     next(err);
@@ -67,6 +84,7 @@ async function resetPassword(req, res, next) {
         .json({ error: true, message: "ไม่พบ email นี้ในระบบ" });
     }
 
+    console.log("Admin found, updating password...");
     // อัพเดตรหัสผ่านใหม่ (ในระบบจริงควรใช้ bcrypt)
     const success = await updateAdminPassword(admin.id, newPassword);
 
@@ -83,6 +101,7 @@ async function resetPassword(req, res, next) {
       message: "รหัสผ่านได้รับการอัพเดตเรียบร้อยแล้ว"
     });
   } catch (err) {
+    console.error("Reset password error:", err);
     next(err);
   }
 }

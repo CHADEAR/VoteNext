@@ -3,9 +3,9 @@ const { pool } = require("../../config/db");
 
 let bcrypt = null;
 try {
-  bcrypt = require("bcryptjs");
-} catch (_) {
-  // ถ้ายังไม่ติดตั้ง bcryptjs ก็จะ fallback เป็น plain compare ได้
+  bcrypt = require("bcrypt");
+} catch (err) {
+  // ถ้ายังไม่ติดตั้ง bcrypt ก็จะ fallback เป็น plain compare ได้
 }
 
 async function findAdminByEmail(email) {
@@ -35,17 +35,25 @@ async function findAdminByEmail(email) {
 }
 
 function verifyPassword(plainPassword, storedPasswordHash) {
-  // ตอนนี้เทียบตรง ๆ ก่อน
-  return plainPassword === storedPasswordHash;
+  if (!bcrypt) {
+    // Fallback ถ้าไม่มี bcrypt (ไม่ควรเกิดใน production)
+    return plainPassword === storedPasswordHash;
+  }
+  return bcrypt.compareSync(plainPassword, storedPasswordHash);
 }
 
 async function updateAdminPassword(adminId, newPassword) {
   try {
+    let hashedPassword = newPassword;
+    if (bcrypt) {
+      hashedPassword = bcrypt.hashSync(newPassword, 10);
+    }
+    
     const result = await pool.query(
       `UPDATE admins 
        SET password_hash = $1 
        WHERE id = $2`,
-      [newPassword, adminId] // ในระบบจริงควรใช้ bcrypt.hash(newPassword)
+      [hashedPassword, adminId]
     );
     
     return result.rowCount > 0;
