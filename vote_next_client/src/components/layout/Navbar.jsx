@@ -62,9 +62,11 @@ const Navbar = ({ showProfile = false, onLogout }) => {
     }
   }, []);
 
-  // Debug profileImage state changes
+  // Debug profileImage state changes (remove for production)
   useEffect(() => {
-    console.log('🎨 [Upload Debug] ProfileImage state changed to:', profileImage);
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🎨 [Upload Debug] ProfileImage state changed to:', profileImage);
+    }
   }, [profileImage]);
 
   // ฟังก์ชันสำหรับอัพเดต profile ใน database
@@ -123,17 +125,20 @@ const Navbar = ({ showProfile = false, onLogout }) => {
         
         // อัพเดต state ด้วย string URL เท่านั้น
         setProfileImage(imageUrl);
-        console.log('🔄 [Upload Debug] ProfileImage state set to:', imageUrl);
         
         // อัพเดต localStorage
         if (adminInfo) {
           const updatedAdmin = { ...adminInfo, profile_img: imageUrl };
           setAdminInfo(updatedAdmin);
           localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify(updatedAdmin));
-          console.log('💾 [Upload Debug] Updated localStorage with:', updatedAdmin);
           
           // เรียก API อัพเดต database (ถ้ามี)
-          await updateAdminProfile(adminInfo.id, imageUrl);
+          const response = await updateAdminProfile(adminInfo.id, imageUrl);
+          
+          // รับ token ใหม่จาก response และอัพเดต localStorage
+          if (response.token) {
+            localStorage.setItem('adminToken', response.token);
+          }
         }
         
         toast.success('อัพโหลดรูปภาพสำเร็จ');
@@ -169,7 +174,6 @@ const Navbar = ({ showProfile = false, onLogout }) => {
             onClick={() => setOpenProfile(!openProfile)}
             aria-label="Profile menu"
           >
-            {console.log('🎨 [Render Debug] Rendering profile button, profileImage:', profileImage)}
             {profileImage ? (
               <img src={profileImage} alt="profile" className="profile-img" />
             ) : (
