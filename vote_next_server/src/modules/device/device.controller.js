@@ -5,9 +5,16 @@ const DeviceService = require("./device.service");
 async function registerDevice(req, res, next) {
   try {
     const { deviceId, ownerLabel } = req.body;
-    if (!deviceId) return res.status(400).json({ ok: false, message: "deviceId required" });
+
+    if (!deviceId) {
+      return res.status(400).json({
+        ok: false,
+        message: "deviceId required",
+      });
+    }
 
     const row = await DeviceModel.upsertRemoteDevice(String(deviceId), ownerLabel || null);
+
     return res.json({
       ok: true,
       deviceUuid: row.id,
@@ -21,11 +28,22 @@ async function registerDevice(req, res, next) {
 
 async function getActive(req, res, next) {
   try {
-    const showId = req.query.showId || req.query.roomId; // เผื่อเรียก roomId
-    if (!showId) return res.status(400).json({ ok: false, message: "showId required" });
+    // ✅ ใช้ showId จริงเท่านั้น
+    const showId = req.query.showId;
 
-    const payload = await DeviceService.getActivePoll(showId);
-    return res.json({ ok: true, payload });
+    if (!showId) {
+      return res.status(400).json({
+        ok: false,
+        message: "showId required",
+      });
+    }
+
+    const payload = await DeviceService.getActivePoll(String(showId));
+
+    return res.json({
+      ok: true,
+      payload: payload || null,
+    });
   } catch (e) {
     next(e);
   }
@@ -33,29 +51,51 @@ async function getActive(req, res, next) {
 
 async function vote(req, res, next) {
   try {
-    const { deviceId, showId, roundId, contestantId, choiceId } = req.body;
+    const {
+      deviceId,
+      showId,
+      roundId,
+      pollId,        // ✅ รองรับเพิ่ม
+      contestantId,
+      choiceId,
+    } = req.body;
 
-    // ✅ รองรับทั้ง contestantId และ choiceId (กันฝั่ง ESP32 ส่งคนละชื่อ)
+    // ✅ รองรับหลายชื่อจากฝั่ง client/ESP32
     const cid = contestantId || choiceId;
+    let rid = roundId || pollId;
+    const sid = showId;
 
     if (!deviceId || !cid) {
-      return res.status(400).json({ ok: false, message: "deviceId and contestantId required" });
+      return res.status(400).json({
+        ok: false,
+        message: "deviceId and contestantId required",
+      });
     }
 
-    // ถ้าไม่ส่ง roundId มา ให้ server หาให้จาก showId
-    let rid = roundId;
-    let sid = showId;
-
+    // ✅ ถ้าไม่มี roundId/pollId ให้หา active round จาก showId
     if (!rid) {
-      if (!sid) return res.status(400).json({ ok: false, message: "showId required when roundId missing" });
+      if (!sid) {
+        return res.status(400).json({
+          ok: false,
+          message: "showId required when roundId missing",
+        });
+      }
 
       const round = await DeviceModel.getCurrentVotingRound(String(sid));
-      if (!round) return res.status(404).json({ ok: false, message: "no active voting round" });
+      if (!round) {
+        return res.status(404).json({
+          ok: false,
+          message: "no active voting round",
+        });
+      }
+
       rid = round.id;
     }
 
     let dev = await DeviceModel.findRemoteDeviceByDeviceId(String(deviceId));
-    if (!dev) dev = await DeviceModel.upsertRemoteDevice(String(deviceId), null);
+    if (!dev) {
+      dev = await DeviceModel.upsertRemoteDevice(String(deviceId), null);
+    }
 
     const inserted = await DeviceModel.insertRemoteVote({
       roundId: String(rid),
@@ -64,10 +104,16 @@ async function vote(req, res, next) {
     });
 
     if (!inserted) {
-      return res.status(409).json({ ok: false, message: "already voted for this round" });
+      return res.status(409).json({
+        ok: false,
+        message: "already voted for this round or contestant not in round",
+      });
     }
 
-    return res.json({ ok: true, roundId: String(rid) });
+    return res.json({
+      ok: true,
+      roundId: String(rid),
+    });
   } catch (e) {
     next(e);
   }
