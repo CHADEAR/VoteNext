@@ -43,18 +43,6 @@ async function ensureRoundIsUpToDate(round) {
   return round;
 }
 
-async function getRound(roundId) {
-  const result = await pool.query(
-    `SELECT id, status, start_time, end_time, counter_type, vote_mode
-     FROM rounds
-     WHERE id = $1`,
-    [roundId]
-  );
-
-  if (result.rowCount === 0) throw new Error("Round not found");
-  return ensureRoundIsUpToDate(result.rows[0]);
-}
-
 /**
  * AUTO start ใช้เมื่อถึง start_time
  * กัน start ซ้ำด้วย WHERE status='pending'
@@ -426,12 +414,6 @@ async function createNextRound({
       [newRound.id]
     );
 
-    // ✅ set public_slug = round.id (match first round behavior)
-    await client.query(
-      `UPDATE rounds SET public_slug = id::text WHERE id = $1`,
-      [newRound.id]
-    );
-
     for (const cid of selected) {
       await client.query(
         `INSERT INTO round_contestants (round_id, contestant_id)
@@ -727,4 +709,5 @@ module.exports = {
   createFirstRound,
   createNextRound,
   computeRoundResults,
+  finalizeShow,
 };
