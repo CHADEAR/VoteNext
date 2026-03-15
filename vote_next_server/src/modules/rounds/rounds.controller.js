@@ -1,9 +1,11 @@
+//vote_next_server/src/modules/rounds/rounds.controller.js
 const {
   startRound,
   closeRound,
   getRound,
   finalizeShow,
 } = require("./rounds.service");
+
 
 /**
  * POST /api/rounds/:roundId/start
@@ -120,6 +122,10 @@ exports.getRound = async (req, res) => {
     const data = await getRound(roundId);
     res.json({ success: true, data });
   } catch (err) {
-    res.status(404).json({ success: false, message: err.message });
+    console.error("getRound error:", err);
+    if (err.message === "Round not found") {
+      return res.status(404).json({ success: false, message: err.message });
+    }
+    res.status(500).json({ success: false, message: err.message });
   }
 };

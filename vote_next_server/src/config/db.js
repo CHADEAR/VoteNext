@@ -2,14 +2,21 @@
 const { Pool } = require("pg");
 const { DATABASE_URL } = require("./env");
 
-// const pool = new Pool({
-//   connectionString: DATABASE_URL,
-// });
+console.log("DATABASE_URL =", DATABASE_URL);
+console.log("NODE_ENV =", process.env.NODE_ENV);
 
 const pool = new Pool({
   connectionString: DATABASE_URL,
   ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
 });
+
+pool.query("SELECT current_database(), current_user")
+  .then((res) => {
+    console.log("DB CHECK =", res.rows[0]);
+  })
+  .catch((err) => {
+    console.error("DB CHECK ERROR =", err.message);
+  });
 
 pool.on("error", (err) => {
   console.error("Unexpected DB error", err);
@@ -17,4 +24,3 @@ pool.on("error", (err) => {
 });
 
 module.exports = { pool };
-

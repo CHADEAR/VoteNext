@@ -1,3 +1,4 @@
+//vote_next_client/src/pages/admin/CreateVotePollPage.jsx
 import React, { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "react-toastify";
@@ -100,9 +101,9 @@ const CreateVotePoll = () => {
 
       if (!o) {
         patch.add.push({
-          stage_name: f.label,
+          stage_name: f.stage_name,
           description: f.description || "",
-          image_url: f.imageUrl || null,
+          image_url: f.image_url || null,
           order_number: i + 1,
         });
         continue;
@@ -111,18 +112,21 @@ const CreateVotePoll = () => {
       const diff = {};
       let changed = false;
 
-      if (f.label !== o.stage_name) {
-        diff.stage_name = f.label;
+      if (f.stage_name !== o.stage_name) {
+        diff.stage_name = f.stage_name;
         changed = true;
       }
-      if (f.description !== o.description) {
-        diff.description = f.description;
+
+      if ((f.description || "") !== (o.description || "")) {
+        diff.description = f.description || "";
         changed = true;
       }
-      if (f.imageUrl !== o.image_url) {
-        diff.image_url = f.imageUrl;
+
+      if ((f.image_url || null) !== (o.image_url || null)) {
+        diff.image_url = f.image_url || null;
         changed = true;
       }
+
       const expected = i + 1;
       if (expected !== o.order_number) {
         diff.order_number = expected;
@@ -171,11 +175,15 @@ const CreateVotePoll = () => {
       .map((c) => ({
         id: c.id,
         label: c.stage_name,
-        description: c.description,
+        stage_name: c.stage_name,
+        description: c.description || "",
         image: null,
         imagePreview: buildImageUrl(c.image_url),
         imageUrl: c.image_url,
+        image_url: c.image_url,
+        order_number: c.order_number || 0,
       }));
+
 
     setOriginalChoices(mapped);
     setEditingId(raw.round_id || raw.id);
@@ -214,19 +222,23 @@ const CreateVotePoll = () => {
         formData.choices.map(async (c, i) => {
           let imageUrl = c.imageUrl || null;
           if (c.image) {
-            const up = await uploadImageToCloudinary(c.image, "contestants/temp");
+            const up = await uploadImageToCloudinary(c.image, "contestants");
+
+            console.log("CLOUDINARY UPLOAD =", up);
             imageUrl = up.imageUrl;
           }
           return {
             id: c.id,
-            stage_name: c.label,
-            description: c.description,
-            label: c.label, 
-            image_url: imageUrl,
+            stage_name: c.label?.trim(),
+            description: c.description || "",
+            image_url: imageUrl || null,
             order_number: i + 1,
           };
+
         })
       );
+
+      console.log("UPLOADED CONTESTANTS =", uploaded);
 
       if (editingId) {
         const payload = {
@@ -248,9 +260,11 @@ const CreateVotePoll = () => {
           payload.contestants = patch;
         }
 
+        console.log("PATCH payload =", JSON.stringify(payload, null, 2));
+
+
         await patchRoom(editingId, payload);
       
-        console.log("PATCH payload =", JSON.stringify(payload, null, 2));
         toast.success("Updated poll successfully!");
         
       } else {

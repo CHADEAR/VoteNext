@@ -14,30 +14,55 @@ async function getCurrentVotingRound(showId) {
   return r.rowCount ? r.rows[0] : null;
 }
 
-// เอาผู้เข้าแข่งขันของ show มาโชว์ (จำกัด 4 คนแบบรีโมท)
-async function getContestantsByShow(showId, limit = 4) {
+// เอาผู้เข้าแข่งขันของ show มาโชว์
+// ถ้าส่ง limit มาเป็น number ค่อย limit
+async function getContestantsByShow(showId, limit = null) {
+  if (typeof limit === "number" && limit > 0) {
+    const sql = `
+      SELECT id, stage_name, image_url, order_number
+      FROM contestants
+      WHERE show_id = $1
+      ORDER BY order_number ASC NULLS LAST, created_at ASC
+      LIMIT $2
+    `;
+    const r = await pool.query(sql, [showId, limit]);
+    return r.rows;
+  }
+
   const sql = `
     SELECT id, stage_name, image_url, order_number
     FROM contestants
     WHERE show_id = $1
     ORDER BY order_number ASC NULLS LAST, created_at ASC
-    LIMIT $2
   `;
-  const r = await pool.query(sql, [showId, limit]);
+  const r = await pool.query(sql, [showId]);
   return r.rows;
 }
 
-// ✅ ใหม่: เอาผู้เข้าแข่งขัน “ตามรอบ” (สำคัญมากสำหรับรอบถัดไป)
-async function getContestantsByRound(roundId, limit = 4) {
+// เอาผู้เข้าแข่งขัน “ตามรอบ”
+// ถ้าส่ง limit มาเป็น number ค่อย limit
+async function getContestantsByRound(roundId, limit = null) {
+  if (typeof limit === "number" && limit > 0) {
+    const sql = `
+      SELECT c.id, c.stage_name, c.image_url, c.order_number
+      FROM round_contestants rc
+      JOIN contestants c ON c.id = rc.contestant_id
+      WHERE rc.round_id = $1
+      ORDER BY c.order_number ASC NULLS LAST, c.created_at ASC
+      LIMIT $2
+    `;
+    const r = await pool.query(sql, [roundId, limit]);
+    return r.rows;
+  }
+
   const sql = `
     SELECT c.id, c.stage_name, c.image_url, c.order_number
     FROM round_contestants rc
     JOIN contestants c ON c.id = rc.contestant_id
     WHERE rc.round_id = $1
     ORDER BY c.order_number ASC NULLS LAST, c.created_at ASC
-    LIMIT $2
   `;
-  const r = await pool.query(sql, [roundId, limit]);
+  const r = await pool.query(sql, [roundId]);
   return r.rows;
 }
 
@@ -60,14 +85,15 @@ async function findRemoteDeviceByDeviceId(deviceId) {
   return r.rowCount ? r.rows[0] : null;
 }
 
-// บันทึกโหวตรีโมท: 1 device = 1 vote / round (ตาม UNIQUE)
-// ✅ เพิ่มเงื่อนไขว่า contestant ต้องอยู่ใน round_contestants ด้วย
+// บันทึกโหวตรีโมท: 1 device = 1 vote / round
+// contestant ต้องอยู่ใน round_contestants ด้วย
 async function insertRemoteVote({ roundId, contestantId, remoteDeviceUuid }) {
   const sql = `
     INSERT INTO remote_votes (round_id, contestant_id, remote_device_id)
     SELECT $1, $2, $3
     WHERE EXISTS (
-      SELECT 1 FROM round_contestants
+      SELECT 1
+      FROM round_contestants
       WHERE round_id = $1 AND contestant_id = $2
     )
     ON CONFLICT (round_id, remote_device_id) DO NOTHING
@@ -77,11 +103,10 @@ async function insertRemoteVote({ roundId, contestantId, remoteDeviceUuid }) {
   return r.rowCount ? r.rows[0] : null;
 }
 
-
 module.exports = {
   getCurrentVotingRound,
   getContestantsByShow,
-  getContestantsByRound, // ✅ export ใหม่
+  getContestantsByRound,
   upsertRemoteDevice,
   findRemoteDeviceByDeviceId,
   insertRemoteVote,

@@ -144,24 +144,50 @@ async function updateShowWithContestants(showId, { title, description, contestan
 // GET: Rooms (Rounds + Show + Contestants)
 // ==============================
 async function getRoomsWithContestants() {
+  console.log(">>> HIT getRoomsWithContestants from rooms.service.js");
+
+  const { rows: dbInfo } = await pool.query(
+    "SELECT current_database(), current_user"
+  );
+  console.log(">>> SERVICE DB =", dbInfo[0]);
+
+  const { rows: reg } = await pool.query(
+    "SELECT to_regclass('public.round_contestants') AS tbl"
+  );
+  console.log(">>> round_contestants =", reg[0].tbl);
+
+  const { rows: debugContestants } = await pool.query(`
+  SELECT
+    rc.round_id,
+    c.id,
+    c.stage_name,
+    c.image_url,
+    c.order_number
+  FROM round_contestants rc
+  JOIN contestants c ON c.id = rc.contestant_id
+  WHERE rc.round_id = $1
+  ORDER BY c.order_number ASC
+`, ['53f39f5f-8f5c-45c6-899c-2f6851812e76']);
+
+console.log(">>> DEBUG contestants for round 53 =", debugContestants);
+
   const { rows: rounds } = await pool.query(`
     SELECT
-  r.id            AS round_id,
-  r.round_name,
-  r.vote_mode,
-  r.counter_type,
-  r.status,
-  r.start_time,
-  r.end_time,
-  r.created_at,
-  r.public_slug,
-  s.id            AS show_id,
-  s.title,
-  s.description
-FROM rounds r
-JOIN shows s ON s.id = r.show_id
-ORDER BY r.created_at DESC
-
+      r.id            AS round_id,
+      r.round_name,
+      r.vote_mode,
+      r.counter_type,
+      r.status,
+      r.start_time,
+      r.end_time,
+      r.created_at,
+      r.public_slug,
+      s.id            AS show_id,
+      s.title,
+      s.description
+    FROM rounds r
+    JOIN shows s ON s.id = r.show_id
+    ORDER BY r.created_at DESC
   `);
 
   if (rounds.length === 0) return [];
