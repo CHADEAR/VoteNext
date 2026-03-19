@@ -196,7 +196,7 @@ async function getRound(roundId) {
     );
 
     // Add contestants to round object
-    round.contestants = contestantsResult.rows.map(c => ({
+    round.contestants = contestantsResult.rows.map((c) => ({
       id: c.id,
       name: c.name,
       image_url: c.image_url,
@@ -204,7 +204,7 @@ async function getRound(roundId) {
       online_votes: Number(c.online_votes) || 0,
       remote_votes: Number(c.remote_votes) || 0,
       judge_score: Number(c.judge_score) || 0,
-      total_score: Number(c.total_score) || 0
+      total_score: Number(c.total_score) || 0,
     }));
 
     return round;
@@ -285,7 +285,9 @@ async function createFirstRound({
       `SELECT id FROM contestants WHERE show_id = $1`,
       [showId]
     );
-    if (contestantsRes.rowCount < 2) throw new Error("At least 2 contestants required");
+    if (contestantsRes.rowCount < 2) {
+      throw new Error("At least 2 contestants required");
+    }
 
     const resolvedVoteMode = normalizeVoteMode(voteMode);
     const normCounter = normalizeCounterType(counterType);
@@ -355,7 +357,9 @@ async function createNextRound({
     );
     if (r.rowCount === 0) throw new Error("Round not found");
     const prevRound = r.rows[0];
-    if (prevRound.status !== "closed") throw new Error("Previous round must be closed");
+    if (prevRound.status !== "closed") {
+      throw new Error("Previous round must be closed");
+    }
 
     const v = await client.query(
       `SELECT 1 FROM rounds WHERE show_id = $1 AND status = 'voting'`,
@@ -380,12 +384,16 @@ async function createNextRound({
     } else if (mode === "advanced") {
       if (!takeTop || takeTop < 2) throw new Error("takeTop must be >= 2");
       const top = scores.rows.slice(0, takeTop).map((r) => r.contestant_id);
-      selected = [...new Set([...top, ...wildcards])].filter((id) => !removes.includes(id));
+      selected = [...new Set([...top, ...wildcards])].filter(
+        (id) => !removes.includes(id)
+      );
     } else {
       throw new Error("Invalid mode");
     }
 
-    if (selected.length < 2) throw new Error("Next round must have at least 2 contestants");
+    if (selected.length < 2) {
+      throw new Error("Next round must have at least 2 contestants");
+    }
 
     const resolvedCounterType = startTime && endTime ? "auto" : "manual";
     const st = resolvedCounterType === "auto" ? startTime : null;
@@ -436,25 +444,33 @@ async function computeRoundResults(roundId, judgeScores = []) {
   const client = await pool.connect();
 
   try {
-    await client.query('BEGIN');
+    await client.query("BEGIN");
 
-    // Check if round exists and is closed
+    // Check if round exists
     const roundResult = await client.query(
-      `SELECT id, status, show_id 
-       FROM rounds 
-       WHERE id = $1 
+      `SELECT id, status, show_id
+       FROM rounds
+       WHERE id = $1
        FOR UPDATE`,
       [roundId]
     );
 
     if (roundResult.rows.length === 0) {
-      throw new Error('Round not found');
+      throw new Error("Round not found");
     }
 
     const round = roundResult.rows[0];
 
-    if (round.status !== 'closed') {
-      throw new Error('Cannot compute results for a round that is not closed');
+    // ✅ ถ้ายัง voting อยู่ ให้ปิดรอบอัตโนมัติก่อน
+    if (round.status === "voting") {
+      await client.query(
+        `UPDATE rounds
+         SET status = 'closed'
+         WHERE id = $1`,
+        [roundId]
+      );
+    } else if (round.status !== "closed") {
+      throw new Error("Cannot compute results for this round status");
     }
 
     // Save judge scores if provided
@@ -463,7 +479,7 @@ async function computeRoundResults(roundId, judgeScores = []) {
         await client.query(
           `INSERT INTO judge_scores (round_id, contestant_id, score)
            VALUES ($1, $2, $3)
-           ON CONFLICT (round_id, contestant_id) 
+           ON CONFLICT (round_id, contestant_id)
            DO UPDATE SET score = EXCLUDED.score`,
           [roundId, contestantId, score]
         );
@@ -477,17 +493,17 @@ async function computeRoundResults(roundId, judgeScores = []) {
     );
 
     if (showResult.rows.length === 0) {
-      throw new Error('Show not found');
+      throw new Error("Show not found");
     }
 
     if (showResult.rows[0].finalized) {
-      throw new Error('Show is already finalized');
+      throw new Error("Show is already finalized");
     }
 
     // Get all contestants with online/remote/judge scores
     const result = await client.query(
       `WITH online_counts AS (
-         SELECT 
+         SELECT
            contestant_id,
            COUNT(*) as online_votes
          FROM online_votes
@@ -495,7 +511,7 @@ async function computeRoundResults(roundId, judgeScores = []) {
          GROUP BY contestant_id
        ),
        remote_counts AS (
-         SELECT 
+         SELECT
            contestant_id,
            COUNT(*) as remote_votes
          FROM remote_votes
@@ -503,13 +519,13 @@ async function computeRoundResults(roundId, judgeScores = []) {
          GROUP BY contestant_id
        ),
        judge_scores AS (
-         SELECT 
+         SELECT
            contestant_id,
            COALESCE(score, 0) as judge_score
          FROM judge_scores
          WHERE round_id = $1
        )
-       SELECT 
+       SELECT
          rc.contestant_id,
          c.stage_name as name,
          c.image_url,
@@ -523,30 +539,31 @@ async function computeRoundResults(roundId, judgeScores = []) {
        LEFT JOIN remote_counts rcount ON rcount.contestant_id = rc.contestant_id
        LEFT JOIN judge_scores js ON js.contestant_id = rc.contestant_id
        WHERE rc.round_id = $1
-       ORDER BY 
-         total_score DESC, 
+       ORDER BY
+         total_score DESC,
          c.stage_name`,
       [roundId]
     );
 
-    // Update the round_contestants with the computed scores and ranks
-    // Handle ties by giving the same rank to contestants with the same score
+    // Update round_contestants with computed scores and ranks
     let currentRank = 1;
     let previousTotal = null;
     let rankToUse = 1;
-    
+
     for (let i = 0; i < result.rows.length; i++) {
       const contestant = result.rows[i];
-      
-      // If this contestant has the same score as the previous one, they get the same rank
-      if (previousTotal !== null && contestant.total_score === previousTotal) {
-        // Same rank as previous contestant
+
+      if (
+        previousTotal !== null &&
+        Number(contestant.total_score) === Number(previousTotal)
+      ) {
+        // same rank as previous
       } else {
         rankToUse = currentRank;
       }
 
       await client.query(
-        `UPDATE round_contestants 
+        `UPDATE round_contestants
          SET online_votes = $1,
              remote_votes = $2,
              judge_score = $3,
@@ -561,28 +578,27 @@ async function computeRoundResults(roundId, judgeScores = []) {
           contestant.total_score,
           rankToUse,
           roundId,
-          contestant.contestant_id
+          contestant.contestant_id,
         ]
       );
 
-      // Update previous values for next iteration
       previousTotal = contestant.total_score;
       currentRank++;
     }
 
-    // Mark round as results_computed=true
+    // Mark round as results computed
     await client.query(
-      `UPDATE rounds 
+      `UPDATE rounds
        SET results_computed = true
        WHERE id = $1`,
       [roundId]
     );
 
-    await client.query('COMMIT');
-  
-    // Return the results with the computed ranks
+    await client.query("COMMIT");
+
+    // Return final results
     const finalResults = await client.query(
-      `SELECT 
+      `SELECT
          rc.contestant_id as id,
          c.stage_name as name,
          c.image_url,
@@ -597,10 +613,10 @@ async function computeRoundResults(roundId, judgeScores = []) {
        ORDER BY rc.rank, rc.total_score DESC, c.stage_name`,
       [roundId]
     );
-  
+
     return finalResults.rows;
   } catch (err) {
-    await client.query('ROLLBACK');
+    await client.query("ROLLBACK");
     throw err;
   } finally {
     client.release();
@@ -616,9 +632,9 @@ async function computeRoundResults(roundId, judgeScores = []) {
  */
 async function finalizeShow(roundId, lineup, target) {
   const client = await pool.connect();
-  
+
   try {
-    await client.query('BEGIN');
+    await client.query("BEGIN");
 
     // Get the round with show_id
     const roundResult = await client.query(
@@ -627,14 +643,14 @@ async function finalizeShow(roundId, lineup, target) {
     );
 
     if (roundResult.rows.length === 0) {
-      throw new Error('Round not found');
+      throw new Error("Round not found");
     }
 
     const round = roundResult.rows[0];
 
     // Verify round is closed and computed
-    if (round.status !== 'closed') {
-      throw new Error('Cannot finalize show: round is not closed');
+    if (round.status !== "closed") {
+      throw new Error("Cannot finalize show: round is not closed");
     }
 
     // Verify show is not already finalized
@@ -644,13 +660,13 @@ async function finalizeShow(roundId, lineup, target) {
     );
 
     if (showResult.rows.length === 0) {
-      throw new Error('Show not found');
+      throw new Error("Show not found");
     }
 
     const show = showResult.rows[0];
 
     if (show.finalized) {
-      throw new Error('Show is already finalized');
+      throw new Error("Show is already finalized");
     }
 
     // Verify all contestants in lineup exist and are in the round
@@ -659,42 +675,42 @@ async function finalizeShow(roundId, lineup, target) {
         `SELECT id FROM contestants WHERE id = ANY($1::uuid[])`,
         [lineup]
       );
-      
+
       if (contestantResult.rows.length !== lineup.length) {
-        throw new Error('One or more contestants not found');
+        throw new Error("One or more contestants not found");
       }
 
       // Verify contestants are in the round
       const roundContestantsResult = await client.query(
-        `SELECT contestant_id 
-         FROM round_contestants 
+        `SELECT contestant_id
+         FROM round_contestants
          WHERE round_id = $1 AND contestant_id = ANY($2::uuid[])`,
         [roundId, lineup]
       );
 
       if (roundContestantsResult.rows.length !== lineup.length) {
-        throw new Error('One or more contestants are not in this round');
+        throw new Error("One or more contestants are not in this round");
       }
     }
 
     // Update show with final lineup and mark as finalized
     const updateShowResult = await client.query(
-      `UPDATE shows 
-       SET finalized = true, 
+      `UPDATE shows
+       SET finalized = true,
            final_lineup = $1
        WHERE id = $2
        RETURNING *`,
       [lineup, round.show_id]
     );
 
-    await client.query('COMMIT');
-    
+    await client.query("COMMIT");
+
     return {
       ...updateShowResult.rows[0],
-      target_debut: target || lineup?.length || 0
+      target_debut: target || lineup?.length || 0,
     };
   } catch (error) {
-    await client.query('ROLLBACK');
+    await client.query("ROLLBACK");
     throw error;
   } finally {
     client.release();
