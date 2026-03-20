@@ -6,7 +6,6 @@ async function createRoomWithContestants({ title, description, contestants }) {
   try {
     await client.query("BEGIN");
 
-    // 1. Create show
     const showResult = await client.query(
       `INSERT INTO shows (title, description)
        VALUES ($1, $2)
@@ -15,7 +14,6 @@ async function createRoomWithContestants({ title, description, contestants }) {
     );
     const show = showResult.rows[0];
 
-    // 2. Create contestants
     const createdContestants = [];
     for (let i = 0; i < contestants.length; i++) {
       const contestant = contestants[i];
@@ -27,9 +25,9 @@ async function createRoomWithContestants({ title, description, contestants }) {
         [
           show.id,
           contestant.stage_name,
-          contestant.description || '',
+          contestant.description || "",
           contestant.image_url || null,
-          contestant.order_number || i + 1
+          contestant.order_number || i + 1,
         ]
       );
       createdContestants.push(result.rows[0]);
@@ -45,25 +43,20 @@ async function createRoomWithContestants({ title, description, contestants }) {
   }
 }
 
-// ==============================
-// GET: Show with contestants
-// ==============================
 async function getShowWithContestants(showId) {
   const client = await pool.connect();
   try {
-    // Get show
     const showRes = await client.query(
       `SELECT * FROM shows WHERE id = $1`,
       [showId]
     );
 
     if (showRes.rows.length === 0) {
-      throw new Error('Show not found');
+      throw new Error("Show not found");
     }
 
     const show = showRes.rows[0];
 
-    // Get contestants
     const contestantsRes = await client.query(
       `SELECT * FROM contestants 
        WHERE show_id = $1 
@@ -73,22 +66,18 @@ async function getShowWithContestants(showId) {
 
     return {
       ...show,
-      contestants: contestantsRes.rows
+      contestants: contestantsRes.rows,
     };
   } finally {
     client.release();
   }
 }
 
-// ==============================
-// UPDATE: Show and contestants
-// ==============================
 async function updateShowWithContestants(showId, { title, description, contestants }) {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
 
-    // 1. Update show
     const showRes = await client.query(
       `UPDATE shows 
        SET title = $1, description = $2
@@ -98,16 +87,11 @@ async function updateShowWithContestants(showId, { title, description, contestan
     );
 
     if (showRes.rows.length === 0) {
-      throw new Error('Show not found');
+      throw new Error("Show not found");
     }
 
-    // 2. Delete existing contestants
-    await client.query(
-      `DELETE FROM contestants WHERE show_id = $1`,
-      [showId]
-    );
+    await client.query(`DELETE FROM contestants WHERE show_id = $1`, [showId]);
 
-    // 3. Re-create contestants
     const createdContestants = [];
     for (let i = 0; i < contestants.length; i++) {
       const contestant = contestants[i];
@@ -119,9 +103,9 @@ async function updateShowWithContestants(showId, { title, description, contestan
         [
           showId,
           contestant.stage_name,
-          contestant.description || '',
+          contestant.description || "",
           contestant.image_url || null,
-          contestant.order_number || i + 1
+          contestant.order_number || i + 1,
         ]
       );
       createdContestants.push(result.rows[0]);
@@ -130,7 +114,7 @@ async function updateShowWithContestants(showId, { title, description, contestan
     await client.query("COMMIT");
     return {
       show: showRes.rows[0],
-      contestants: createdContestants
+      contestants: createdContestants,
     };
   } catch (error) {
     await client.query("ROLLBACK");
@@ -141,202 +125,201 @@ async function updateShowWithContestants(showId, { title, description, contestan
 }
 
 // ==============================
-// GET: Rooms (Rounds + Show + Contestants)
+// AUTO STATUS HELPERS
 // ==============================
-async function getRoomsWithContestants() {
-  console.log(">>> HIT getRoomsWithContestants from rooms.service.js");
-
-  const { rows: dbInfo } = await pool.query(
-    "SELECT current_database(), current_user"
-  );
-  console.log(">>> SERVICE DB =", dbInfo[0]);
-
-  const { rows: reg } = await pool.query(
-    "SELECT to_regclass('public.round_contestants') AS tbl"
-  );
-  console.log(">>> round_contestants =", reg[0].tbl);
-
-  const { rows: debugContestants } = await pool.query(`
-  SELECT
-    rc.round_id,
-    c.id,
-    c.stage_name,
-    c.image_url,
-    c.order_number
-  FROM round_contestants rc
-  JOIN contestants c ON c.id = rc.contestant_id
-  WHERE rc.round_id = $1
-  ORDER BY c.order_number ASC
-`, ['53f39f5f-8f5c-45c6-899c-2f6851812e76']);
-
-console.log(">>> DEBUG contestants for round 53 =", debugContestants);
-
-  const { rows: rounds } = await pool.query(`
-    SELECT
-      r.id            AS round_id,
-      r.round_name,
-      r.vote_mode,
-      r.counter_type,
-      r.status,
-      r.start_time,
-      r.end_time,
-      r.created_at,
-      r.public_slug,
-      s.id            AS show_id,
-      s.title,
-      s.description
-    FROM rounds r
-    JOIN shows s ON s.id = r.show_id
-    ORDER BY r.created_at DESC
-  `);
-
-  if (rounds.length === 0) return [];
-
-  const roundIds = rounds.map(r => r.round_id);
-
-  const { rows: contestants } = await pool.query(`
-    SELECT
-      rc.round_id,
-      c.id,
-      c.stage_name,
-      c.description,
-      c.image_url,
-      c.order_number
-    FROM round_contestants rc
-    JOIN contestants c ON c.id = rc.contestant_id
-    WHERE rc.round_id = ANY($1::uuid[])
-    ORDER BY c.order_number ASC
-  `, [roundIds]);
-
-  // group contestants by round_id
-  const map = {};
-  for (const c of contestants) {
-    if (!map[c.round_id]) map[c.round_id] = [];
-    map[c.round_id].push(c);
+function computeAutoRoundStatus(round) {
+  if (round.counter_type !== "auto" || !round.start_time || !round.end_time) {
+    return round.status;
   }
 
-  // shape response ให้ frontend ใช้ได้ทันที
-return rounds.map(r => ({
-  round_id: r.round_id,
-  title: r.title,
-  description: r.description,
-  vote_mode: r.vote_mode,
-  counter_type: r.counter_type,
-  status: r.status,
-  start_time: r.start_time,
-  end_time: r.end_time,
-  created_at: r.created_at,
-  public_slug: r.public_slug,
-  contestants: map[r.round_id] || []
-}));
-
-}
-
-async function getRoomBySlug(slug) {
-  const { rows } = await pool.query(
-    `
-    SELECT
-      r.id,
-      r.round_name,
-      r.status AS db_status,
-      r.start_time,
-      r.end_time,
-      r.public_slug,
-      r.counter_type,
-      s.title,
-      s.description
-    FROM rounds r
-    JOIN shows s ON s.id = r.show_id
-    WHERE r.public_slug = $1
-    LIMIT 1
-    `,
-    [slug]
-  );
-
-  if (rows.length === 0) {
-    throw new Error("Poll not found");
-  }
-
-  let round = rows[0];
-
-  // compute status จาก server time
   const now = new Date();
-
-  let computedStatus = round.db_status;
-
-  // after computing computedStatus
-if (round.counter_type === "auto" && round.start_time && round.end_time) {
   const start = new Date(round.start_time);
   const end = new Date(round.end_time);
 
-  if (now < start) {
-    computedStatus = "pending";
-  } else if (now >= start && now < end) {
-    computedStatus = "voting";
-  } else if (now >= end) {
-    computedStatus = "closed";
-
-    // auto close sync to DB (only when DB is not closed yet)
-    if (round.db_status !== "closed") {
-      await pool.query(
-        `UPDATE rounds SET status='closed' WHERE id=$1`,
-        [round.id]
-      );
-      round.db_status = "closed";
-    }
-  }
+  if (now < start) return "pending";
+  if (now >= start && now < end) return "voting";
+  return "closed";
 }
 
-  // โหลด contestants เดิม
-  const { rows: contestants } = await pool.query(
-    `
-    SELECT
-      c.id,
-      c.stage_name,
-      c.description,
-      c.image_url,
-      c.order_number
-    FROM round_contestants rc
-    JOIN contestants c ON c.id = rc.contestant_id
-    WHERE rc.round_id = $1
-    ORDER BY c.order_number ASC
-    `,
-    [round.id]
+async function syncAutoRoundStatus(client, round) {
+  const currentStatus = round.status;
+  const nextStatus = computeAutoRoundStatus(round);
+
+  if (!nextStatus || nextStatus === currentStatus) {
+    return { ...round, status: currentStatus };
+  }
+
+  await client.query(
+    `UPDATE rounds
+     SET status = $1
+     WHERE id = $2`,
+    [nextStatus, round.round_id || round.id]
   );
 
   return {
     ...round,
-    status: computedStatus,
-    contestants
+    status: nextStatus,
   };
 }
 
-  
+// ==============================
+// GET: Rooms (Rounds + Show + Contestants)
+// ==============================
+async function getRoomsWithContestants(showId = null) {
+  const client = await pool.connect();
+  try {
+    const { rows: roundsRaw } = await client.query(
+      `
+      SELECT
+        r.id            AS round_id,
+        r.round_name,
+        r.vote_mode,
+        r.counter_type,
+        r.status,
+        r.start_time,
+        r.end_time,
+        r.created_at,
+        r.public_slug,
+        r.show_id       AS show_id,
+        s.title,
+        s.description
+      FROM rounds r
+      JOIN shows s ON s.id = r.show_id
+      WHERE ($1::text IS NULL OR r.show_id::text = $1::text)
+      ORDER BY r.created_at DESC
+      `,
+      [showId || null]
+    );
+
+    if (roundsRaw.length === 0) return [];
+
+    const rounds = [];
+    for (const row of roundsRaw) {
+      const synced = await syncAutoRoundStatus(client, row);
+      rounds.push(synced);
+    }
+
+    const roundIds = rounds.map((r) => r.round_id);
+
+    const { rows: contestants } = await client.query(
+      `
+      SELECT
+        rc.round_id,
+        c.id,
+        c.stage_name,
+        c.description,
+        c.image_url,
+        c.order_number
+      FROM round_contestants rc
+      JOIN contestants c ON c.id = rc.contestant_id
+      WHERE rc.round_id = ANY($1::uuid[])
+      ORDER BY c.order_number ASC
+      `,
+      [roundIds]
+    );
+
+    const map = {};
+    for (const c of contestants) {
+      if (!map[c.round_id]) map[c.round_id] = [];
+      map[c.round_id].push(c);
+    }
+
+    return rounds.map((r) => ({
+      round_id: r.round_id,
+      show_id: r.show_id,
+      round_name: r.round_name,
+      title: r.title,
+      description: r.description,
+      vote_mode: r.vote_mode,
+      counter_type: r.counter_type,
+      status: r.status,
+      start_time: r.start_time,
+      end_time: r.end_time,
+      created_at: r.created_at,
+      public_slug: r.public_slug,
+      contestants: map[r.round_id] || [],
+    }));
+  } finally {
+    client.release();
+  }
+}
+
+async function getRoomBySlug(slug) {
+  const client = await pool.connect();
+  try {
+    const { rows } = await client.query(
+      `
+      SELECT
+        r.id,
+        r.round_name,
+        r.status,
+        r.start_time,
+        r.end_time,
+        r.public_slug,
+        r.counter_type,
+        r.show_id,
+        s.title,
+        s.description
+      FROM rounds r
+      JOIN shows s ON s.id = r.show_id
+      WHERE r.public_slug = $1
+      LIMIT 1
+      `,
+      [slug]
+    );
+
+    if (rows.length === 0) {
+      throw new Error("Poll not found");
+    }
+
+    let round = rows[0];
+    round = await syncAutoRoundStatus(client, round);
+
+    const { rows: contestants } = await client.query(
+      `
+      SELECT
+        c.id,
+        c.stage_name,
+        c.description,
+        c.image_url,
+        c.order_number
+      FROM round_contestants rc
+      JOIN contestants c ON c.id = rc.contestant_id
+      WHERE rc.round_id = $1
+      ORDER BY c.order_number ASC
+      `,
+      [round.id]
+    );
+
+    return {
+      ...round,
+      contestants,
+    };
+  } finally {
+    client.release();
+  }
+}
+
 async function deleteRoom(roundId) {
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
+    await client.query("BEGIN");
 
-    // 1) ตรวจสอบว่า round มีอยู่จริง
     const roundRes = await client.query(
       `SELECT id FROM rounds WHERE id = $1`,
       [roundId]
     );
 
     if (roundRes.rowCount === 0) {
-      throw new Error('Round not found');
+      throw new Error("Round not found");
     }
 
-    // 2) ลบเฉพาะ round นี้ → cascade จะลบข้อมูลที่เกี่ยวข้องกับ round นี้เท่านั้น
-    await client.query(
-      `DELETE FROM rounds WHERE id = $1`,
-      [roundId]
-    );
+    await client.query(`DELETE FROM rounds WHERE id = $1`, [roundId]);
 
-    await client.query('COMMIT');
+    await client.query("COMMIT");
     return true;
   } catch (err) {
-    await client.query('ROLLBACK');
+    await client.query("ROLLBACK");
     throw err;
   } finally {
     client.release();
@@ -348,9 +331,6 @@ async function applyContestantPatch(client, showId, roundId, patch) {
 
   const { add = [], update = [], remove = [] } = patch;
 
-  // ------------------------------
-  // ADD
-  // ------------------------------
   for (const c of add) {
     const insertRes = await client.query(
       `
@@ -363,13 +343,12 @@ async function applyContestantPatch(client, showId, roundId, patch) {
         c.stage_name,
         c.description || "",
         c.image_url || null,
-        c.order_number || null
+        c.order_number || null,
       ]
     );
 
     const newId = insertRes.rows[0].id;
 
-    // map to round
     await client.query(
       `
       INSERT INTO round_contestants (round_id, contestant_id)
@@ -379,10 +358,6 @@ async function applyContestantPatch(client, showId, roundId, patch) {
     );
   }
 
-
-  // ------------------------------
-  // UPDATE (merge)
-  // ------------------------------
   for (const c of update) {
     const fields = [];
     const values = [];
@@ -418,18 +393,12 @@ async function applyContestantPatch(client, showId, roundId, patch) {
     }
   }
 
-
-  // ------------------------------
-  // REMOVE (hard delete)
-  // ------------------------------
   for (const id of remove) {
-    // unmap from round
     await client.query(
       `DELETE FROM round_contestants WHERE round_id=$1 AND contestant_id=$2`,
       [roundId, id]
     );
 
-    // delete contestant
     await client.query(
       `DELETE FROM contestants WHERE id=$1 AND show_id=$2`,
       [id, showId]
@@ -446,10 +415,9 @@ async function updatePollMeta(client, showId, roundId, poll) {
     vote_mode,
     counter_type,
     start_time,
-    end_time
+    end_time,
   } = poll;
 
-  // update show partial
   if (title !== undefined || description !== undefined) {
     await client.query(
       `
@@ -462,7 +430,6 @@ async function updatePollMeta(client, showId, roundId, poll) {
     );
   }
 
-  // update round partial
   if (
     vote_mode !== undefined ||
     counter_type !== undefined ||
@@ -483,12 +450,11 @@ async function updatePollMeta(client, showId, roundId, poll) {
         counter_type || null,
         start_time || null,
         end_time || null,
-        roundId
+        roundId,
       ]
     );
   }
 }
-
 
 module.exports = {
   createRoomWithContestants,
