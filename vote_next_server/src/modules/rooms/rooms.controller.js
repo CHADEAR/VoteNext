@@ -65,10 +65,10 @@ exports.createRoom = async (req, res) => {
 };
 
 // GET /api/rooms
-exports.getRooms = async (req, res) => {
+exports.getRooms = async (_req, res) => {
   try {
-    const { showId = null } = req.query;
-    const rooms = await roomService.getRoomsWithContestants(showId || null);
+    // ✅ ชั่วคราว: ไม่กรอง showId เพื่อให้ ESP32 ดึง list ได้เหมือนเดิม
+    const rooms = await roomService.getRoomsWithContestants();
 
     return res.json({
       success: true,
@@ -86,7 +86,6 @@ exports.getRooms = async (req, res) => {
 // PATCH /api/rooms/:id
 exports.patchRoom = async (req, res) => {
   const { id: roundId } = req.params;
-
   const client = await pool.connect();
 
   try {

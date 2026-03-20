@@ -124,9 +124,6 @@ async function updateShowWithContestants(showId, { title, description, contestan
   }
 }
 
-// ==============================
-// AUTO STATUS HELPERS
-// ==============================
 function computeAutoRoundStatus(round) {
   if (round.counter_type !== "auto" || !round.start_time || !round.end_time) {
     return round.status;
@@ -162,10 +159,8 @@ async function syncAutoRoundStatus(client, round) {
   };
 }
 
-// ==============================
-// GET: Rooms (Rounds + Show + Contestants)
-// ==============================
-async function getRoomsWithContestants(showId = null) {
+// ✅ แก้ตรงนี้
+async function getRoomsWithContestants() {
   const client = await pool.connect();
   try {
     const { rows: roundsRaw } = await client.query(
@@ -185,10 +180,8 @@ async function getRoomsWithContestants(showId = null) {
         s.description
       FROM rounds r
       JOIN shows s ON s.id = r.show_id
-      WHERE ($1::text IS NULL OR r.show_id::text = $1::text)
       ORDER BY r.created_at DESC
-      `,
-      [showId || null]
+      `
     );
 
     if (roundsRaw.length === 0) return [];
@@ -226,7 +219,6 @@ async function getRoomsWithContestants(showId = null) {
 
     return rounds.map((r) => ({
       round_id: r.round_id,
-      show_id: r.show_id,
       round_name: r.round_name,
       title: r.title,
       description: r.description,
