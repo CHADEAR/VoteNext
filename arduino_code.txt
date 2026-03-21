@@ -1,0 +1,2700 @@
+// ===================== VoteNext Device (ESP32 + TFT + WS) =====================
+// FIXED VERSION 8.2 UI + STATUS + RGB LED PWM + BATTERY ADC
+// - ใช้ production server จริงเท่านั้น (ไม่มี localhost/local server)
+// - แก้ compile error บน ESP32 core 3.x
+// - แก้ boot LED: ตอนรีเซตให้ขึ้น "น้ำเงิน" ชัดขึ้น ไม่ใช้ฟ้าแบบ G+B
+// - เพิ่มเวลาค้าง boot LED ก่อนเริ่ม WiFi
+// - หน้า STATUS ไม่ขึ้น Poll: Closed ผิดอีก ถ้ามี poll voting อยู่จริง
+// - ถ้า /api/device/active ว่าง แต่ /api/rooms มี voting จะใช้ voting จาก rooms แทน
+// - ลดขนาดรูปในหน้า choice
+// - เปลี่ยน image cache version เพื่อบังคับโหลดรูปใหม่
+// - หน้า choice ยังเป็น 1 แถว / 3 คอลัมน์
+// - ลดการกระพริบและเลื่อนง่ายขึ้น
+// - เพิ่มอ่านแบตจาก GPIO35 ผ่านวงจรแบ่งแรงดัน และแสดง % + V ในหน้า STATUS
+// - เพิ่ม modal ยืนยันก่อนส่งโหวตจริง
+
+#include <WiFi.h>
+#include <WiFiClientSecure.h>
+#include <HTTPClient.h>
+
+#ifndef WEBSOCKETS_MAX_DATA_SIZE
+  #define WEBSOCKETS_MAX_DATA_SIZE 32768
+#endif
+#include <WebSocketsClient.h>
+
+#include <ArduinoJson.h>
+#include <Preferences.h>
+#include <FS.h>
+#include <LittleFS.h>
+#include <TFT_eSPI.h>
+#include <JPEGDecoder.h>
+
+// ===================== TFT / ROTATION =====================
+#define TFT_ROTATION 1
+
+// ================= WIFI / SERVER =================
+const char* WIFI_SSID = "KIRANA6738";
+const char* WIFI_PASS = "65010086";
+
+// ===== ใช้เว็บจริงเท่านั้น =====
+const char* SERVER_HOST = "votenext.onrender.com";
+const uint16_t SERVER_PORT = 443;
+static const char* SERVER_BASE_URL = "https://votenext.onrender.com";
+
+// ===== SHOW UUID ของรายการ =====
+String DEFAULT_SHOW_ID = "387d053a-393f-4380-bc9a-eae04fd75d03";
+
+// ถ้าเป็น 1 = ใช้ DEFAULT_SHOW_ID ก่อนเสมอ
+#define FORCE_USE_DEFAULT_SHOW_ID 1
+
+// debug serial
+// ใช้ขา TX เป็น LED สีน้ำเงิน -> ควรปิด Serial debug ไม่งั้นไฟน้ำเงินจะกะพริบ
+#define SERIAL_DEBUG 0
+#if SERIAL_DEBUG
+  #define DBG(x) Serial.println(x)
+#else
+  #define DBG(x) do {} while(0)
+#endif
+
+// ================= API PATHS =================
+static const char* ROOMS_HTTP_PATH          = "/api/rooms";
+static const char* DEVICE_ACTIVE_HTTP_PATH1 = "/api/device/active";
+static const char* DEVICE_ACTIVE_HTTP_PATH2 = "/api/device/active/";
+static const char* ROUND_DETAIL_HTTP_PATH   = "/api/rounds/";
+static const char* DEVICE_VOTE_HTTP_PATH    = "/api/device/vote";
+
+// ================= PINS =================
+#define USE_PWR_BUTTON      0
+#define USE_TFT_SLEEP_CMD   0
+#define USE_TFT_BL_PIN      1
+
+#define PIN_PWR_BTN         0
+#define PIN_TFT_BL          27
+#define PIN_TOUCH_IRQ       36
+#define TFT_BACKLIGHT_ON    HIGH
+
+// ===== RGB LED (Common Anode) =====
+#define USE_RGB_LED         1
+#define RGB_COMMON_ANODE    1
+
+#define PIN_LED_R           21
+#define PIN_LED_G           22
+#define PIN_LED_B           1     // TX / GPIO1
+
+// PWM for RGB (ESP32 core 3.x ใช้ ledcAttach(pin, freq, resolution))
+#define RGB_PWM_FREQ        5000
+#define RGB_PWM_BITS        8
+#define RGB_PWM_MAX         255
+
+// ความสว่างของแต่ละสี (0-255)
+// ยิ่งเลขน้อย = ยิ่งมืดลง
+#define RGB_LEVEL_RED       8
+#define RGB_LEVEL_GREEN     8
+#define RGB_LEVEL_BLUE      5
+
+// ตอนบูตใช้ "น้ำเงินล้วน" เพื่อไม่ให้เพี้ยนเป็นเขียว
+#define RGB_BOOT_BLUE       18
+
+// เวลาค้างสีน้ำเงินตอนเริ่มบูต (ms)
+#define BOOT_COLOR_HOLD_MS  1800
+
+// ===== Battery ADC =====
+#define USE_BATTERY_ADC       1
+#define PIN_BAT_ADC           35
+
+// วงจรแบ่งแรงดัน:
+// OUT+ / BAT+ ---- R1 ---- GPIO35 ---- R2 ---- GND
+// ตอนนี้ใช้ 47k / 47k
+#define BAT_R1                47000.0f
+#define BAT_R2                47000.0f
+
+// จูนเพิ่มทีหลังได้ ถ้ามีมิเตอร์เทียบ
+#define BAT_CAL_FACTOR        1.0000f
+#define BAT_CAL_OFFSET        0.00f
+
+#define BAT_ADC_SAMPLES       31
+#define BAT_READ_INTERVAL_MS  2500
+
+#define BAT_MIN_VALID_V       2.80f
+#define BAT_MAX_VALID_V       4.35f
+
+// ยิ่งน้อยยิ่งนิ่ง
+#define BAT_FILTER_ALPHA      0.08f
+
+// กัน % เด้งขึ้นลงทีละ 1%
+#define BAT_PERCENT_HYST      2
+
+// ชดเชย "แรงดันตกตอนมีโหลด" สำหรับคำนวณ %
+// แต่ค่า V ที่แสดงยังเป็นค่าอ่านจริง
+#define BAT_PERCENT_COMP_V    0.18f
+
+// ================= TOUCH TUNING =================
+#define FORCE_TOUCH_RECALIBRATE 0
+
+const uint16_t TOUCH_DRAG_THRESHOLD  = 12;
+const uint16_t TOUCH_EDGE_PAD        = 4;
+const uint32_t TOUCH_TAP_MIN_MS      = 20;
+const uint32_t TOUCH_TAP_MAX_MS      = 700;
+const uint32_t TOUCH_DEBOUNCE_MS     = 120;
+
+// ================= UI LAYOUT =================
+const int POLL_CARD_H   = 44;
+const int POLL_CARD_GAP = 10;
+
+const int VOTE_GRID_COLS = 3;
+const int VOTE_GRID_ROWS = 1;
+const int VOTE_PER_PAGE  = VOTE_GRID_COLS * VOTE_GRID_ROWS;
+
+// ================= OBJECTS =================
+TFT_eSPI tft = TFT_eSPI();
+WebSocketsClient ws;
+Preferences prefs;
+
+// ===== Thai smooth font on LittleFS =====
+static const char* THAI_FONT_NAME = "THSarabunNew24";
+static const char* THAI_FONT_FILE = "/THSarabunNew24.vlw";
+bool thaiFontReady = false;
+bool littlefsReady = false;
+
+// ================= LIMITS =================
+#define MAX_POLLS   30
+#define MAX_CHOICES 24
+
+// ================= UI TYPES =================
+enum UiScreen {
+  SCR_SPLASH,
+  SCR_STATUS,
+  SCR_POLL,
+  SCR_VOTE
+};
+
+struct UIRect {
+  int16_t x, y, w, h;
+};
+
+static inline bool hit(const UIRect& r, int16_t x, int16_t y){
+  return (r.w > 0 && r.h > 0 &&
+          x >= r.x && x <= (r.x + r.w) &&
+          y >= r.y && y <= (r.y + r.h));
+}
+
+static inline bool hitPad(const UIRect& r, int16_t x, int16_t y, int16_t pad){
+  return (r.w > 0 && r.h > 0 &&
+          x >= (r.x - pad) && x <= (r.x + r.w + pad) &&
+          y >= (r.y - pad) && y <= (r.y + r.h + pad));
+}
+
+static inline void rectReset(UIRect& r){ r.x = r.y = r.w = r.h = 0; }
+
+// ================= STATE =================
+bool screenOn = true;
+bool wsConnected = false;
+bool pollOpen = false;
+bool voteModalOpen = false;
+bool voteConfirmMode = false;
+bool systemBooting = true;
+
+String activeRoundId = "";
+String activeRoundTitle = "";
+
+String SHOW_ID = "";
+String selectedPollId = "";
+String selectedPollTitle = "";
+String selectedPollDesc = "";
+String selectedPollStatus = "";
+
+// ===== battery state =====
+bool  batteryReady = false;
+float batteryVoltage = 0.0f;
+int   batteryPercent = -1;
+uint32_t lastBatteryReadMs = 0;
+
+struct Choice {
+  String id;
+  String label;
+  String imgUrl;
+  String imgPath;
+  bool   imgReady;
+};
+Choice choices[MAX_CHOICES];
+int choiceCount = 0;
+int voteScroll = 0;
+int lastVotedChoiceIdx = -1;
+int pendingVoteChoiceIdx = -1;
+
+struct PollItem {
+  String id;
+  String title;
+  String description;
+  String status;
+  String createdAt;
+  String voteMode;
+  String showId;
+};
+PollItem polls[MAX_POLLS];
+int pollCount = 0;
+int pollScroll = 0;
+int selectedPollIndex = -1;
+
+UiScreen ui = SCR_SPLASH;
+
+UIRect BTN_JOIN;
+UIRect BTN_BACK;
+UIRect BTN_JOIN_POLL;
+UIRect BTN_DONE;
+UIRect BTN_CONFIRM_YES;
+UIRect BTN_CONFIRM_BACK;
+
+// ================= COLORS =================
+uint16_t C_BG, C_PANEL, C_TEXT, C_MUTED, C_BTN, C_BTN_TEXT, C_CARD, C_BORDER, C_BLUE, C_GREEN;
+uint16_t C_SHADOW, C_MODAL, C_TRACK, C_BROWN;
+uint16_t C_ST_PENDING, C_ST_VOTING, C_ST_CLOSED;
+uint16_t C_SELECTED_FILL, C_SELECTED_BORDER, C_SELECTED_GLOW;
+
+// ================= FLAGS =================
+uint32_t toastHoldUntil = 0;
+volatile bool statusDirty = false;
+volatile bool pollDirty = false;
+volatile bool voteDirty = false;
+
+static bool     touchDown = false;
+static uint16_t touchStartX = 0, touchStartY = 0;
+static uint16_t lastTouchX  = 0, lastTouchY  = 0;
+static bool     didDrag = false;
+static uint32_t touchStartMs = 0;
+static uint32_t lastTouchUpMs = 0;
+
+static bool needImagePreload = false;
+static int  imgDlIndex = 0;
+
+uint32_t wifiLastAttemptMs = 0;
+const uint32_t WIFI_RETRY_MS = 15000;
+
+uint32_t lastRefreshMs = 0;
+const uint32_t REFRESH_MS = 6000;
+
+// ================== forward ==================
+void wsEvent(WStype_t type, uint8_t* payload, size_t length);
+
+void drawSplash();
+void drawStatus();
+void drawPoll();
+void drawVote();
+void goScreen(UiScreen s);
+
+void showVoteConfirmModal(int idx);
+void showVoteModal();
+void sendVote(int idx);
+
+void handleTap(uint16_t x, uint16_t y);
+void handleTouch();
+bool readTouchOnce(uint16_t &x, uint16_t &y);
+
+void reconnectWs();
+void requestActivePoll();
+
+bool fetchPollListHTTP();
+bool fetchRoundDetailViaHttp(const String& rid);
+bool fetchActiveViaHttp();
+bool refreshPollList();
+void preloadChoiceImagesTick();
+
+bool isVotingStatus(String s);
+bool isDisplayableStatus(String s);
+bool isRemoteVoteMode(String s);
+String statusLabelThai(const String& stRaw);
+bool hasAnyVotingPoll();
+
+void drawSoftCard(int x, int y, int w, int h, uint16_t fill, uint8_t radius = 10);
+void drawButton(const UIRect& r, const String& label, uint16_t fill, uint16_t textCol, uint8_t font=2);
+void drawBackIconButton(const UIRect& r);
+void drawMiniGridIcon(int x, int y, uint16_t col);
+void drawVerticalScrollBar(int x, int y, int h, int total, int visible, int start);
+void drawPageScrollBar(int x, int y, int h, int totalPages, int currentPage);
+void getVoteCardRectByVisibleIndex(int visibleIndex, int visibleCount, UIRect &card, UIRect &imgBox, UIRect &labelBox, UIRect &voteBtn);
+
+void selectPollByIndex(int i);
+
+String extractShowIdFromVar(JsonVariantConst v);
+String extractRoundIdFromVar(JsonVariantConst v);
+bool wsPayloadMatchesShow(JsonVariantConst root);
+
+bool parsePollListFromJson(const String& body);
+void addPollFromObject(JsonVariantConst o);
+bool tryParsePollArray(JsonVariantConst src);
+bool isPlaceholderShowId(const String& id);
+void resolveShowId();
+void buildFallbackPollFromActive();
+bool fetchRoomsPayload(String& body);
+bool loadSelectedPollFromRoomsHTTP(const String& rid);
+
+// RGB LED PWM
+void initRgbLed();
+void setRgbColor(uint8_t red, uint8_t green, uint8_t blue);
+void setRgbBoot();
+void updateStatusLed();
+
+// battery
+void initBatteryAdc();
+float readBatteryVoltage();
+int batteryPercentFromVoltage(float v);
+void updateBatteryStatus(bool force = false);
+String batteryText();
+
+// ================== helpers ==================
+static inline String trimLower(String s){ s.trim(); s.toLowerCase(); return s; }
+static inline String lowerStr(String s){ s.toLowerCase(); return s; }
+
+static inline String shortDate(String s){
+  if (s.length() >= 10) return s.substring(0, 10);
+  return s;
+}
+
+bool jsonTruthy(JsonVariantConst v){
+  if (v.isNull()) return false;
+  if (v.is<bool>()) return v.as<bool>();
+  if (v.is<int>()) return v.as<int>() != 0;
+  if (v.is<long>()) return v.as<long>() != 0;
+  if (v.is<const char*>()) {
+    String s = trimLower(String(v.as<const char*>()));
+    return (s == "true" || s == "1" || s == "yes");
+  }
+  return false;
+}
+
+String deviceId() {
+  uint64_t mac = ESP.getEfuseMac();
+  char buf[32];
+  snprintf(buf, sizeof(buf), "ESP32-%04X%08X", (uint16_t)(mac >> 32), (uint32_t)mac);
+  return String(buf);
+}
+
+// ===== production only =====
+static inline bool isLocalServer(){
+  return false;
+}
+
+String serverScheme(){
+  return "https";
+}
+
+String statusLabelThai(const String& stRaw){
+  String st = lowerStr(stRaw);
+  if (st == "pending" || st == "wait") return "pending";
+  if (st == "voting" || st == "open" || st == "active") return "voting";
+  if (st == "closed" || st == "done" || st == "finish") return "closed";
+  return stRaw.length() ? stRaw : "pending";
+}
+
+bool isVotingStatus(String s){
+  s = trimLower(s);
+  return (s == "voting" || s == "open" || s == "active");
+}
+
+bool isDisplayableStatus(String s){
+  s = trimLower(s);
+  return (s == "pending" || s == "wait" || s == "voting" || s == "open" || s == "active");
+}
+
+bool isRemoteVoteMode(String s){
+  s = trimLower(s);
+  return (s == "remote");
+}
+
+bool isPlaceholderShowId(const String& id){
+  String s = id;
+  s.trim();
+  return (!s.length() ||
+          s == "PUT_YOUR_REAL_SHOW_UUID_HERE" ||
+          s == "PUT_YOUR_SHOW_ID_HERE" ||
+          s == "ใส่ SHOW_UUID ของรายการ");
+}
+
+bool hasAnyVotingPoll(){
+  for (int i = 0; i < pollCount; i++){
+    if (isVotingStatus(polls[i].status)) return true;
+  }
+  return false;
+}
+
+// ================== RGB LED PWM ==================
+void initRgbLed() {
+#if USE_RGB_LED
+  pinMode(PIN_LED_R, OUTPUT);
+  pinMode(PIN_LED_G, OUTPUT);
+  pinMode(PIN_LED_B, OUTPUT);
+
+  ledcAttach(PIN_LED_R, RGB_PWM_FREQ, RGB_PWM_BITS);
+  ledcAttach(PIN_LED_G, RGB_PWM_FREQ, RGB_PWM_BITS);
+  ledcAttach(PIN_LED_B, RGB_PWM_FREQ, RGB_PWM_BITS);
+
+  setRgbColor(0, 0, 0);
+#endif
+}
+
+void setRgbColor(uint8_t red, uint8_t green, uint8_t blue) {
+#if USE_RGB_LED
+  uint32_t dutyR, dutyG, dutyB;
+
+  if (RGB_COMMON_ANODE) {
+    dutyR = RGB_PWM_MAX - red;
+    dutyG = RGB_PWM_MAX - green;
+    dutyB = RGB_PWM_MAX - blue;
+  } else {
+    dutyR = red;
+    dutyG = green;
+    dutyB = blue;
+  }
+
+  ledcWrite(PIN_LED_R, dutyR);
+  ledcWrite(PIN_LED_G, dutyG);
+  ledcWrite(PIN_LED_B, dutyB);
+#else
+  (void)red; (void)green; (void)blue;
+#endif
+}
+
+void setRgbBoot() {
+  setRgbColor(0, 0, RGB_BOOT_BLUE);
+}
+
+void updateStatusLed() {
+#if USE_RGB_LED
+  if (!screenOn) {
+    setRgbColor(0, 0, 0);
+    return;
+  }
+
+  if (systemBooting) {
+    setRgbBoot();
+    return;
+  }
+
+  bool wifiOk = (WiFi.status() == WL_CONNECTED);
+  bool wsOk   = wsConnected;
+
+  if (!wifiOk || !wsOk) {
+    setRgbColor(RGB_LEVEL_RED, 0, 0);
+  } else {
+    setRgbColor(0, RGB_LEVEL_GREEN, 0);
+  }
+#endif
+}
+
+// ================== battery adc ==================
+static void sortFloatArray(float *arr, int n) {
+  for (int i = 0; i < n - 1; i++) {
+    for (int j = i + 1; j < n; j++) {
+      if (arr[j] < arr[i]) {
+        float t = arr[i];
+        arr[i] = arr[j];
+        arr[j] = t;
+      }
+    }
+  }
+}
+
+void initBatteryAdc() {
+#if USE_BATTERY_ADC
+  pinMode(PIN_BAT_ADC, INPUT);
+  analogReadResolution(12);
+
+  analogSetPinAttenuation(PIN_BAT_ADC, ADC_6db);
+
+  for (int i = 0; i < 8; i++) {
+    analogReadMilliVolts(PIN_BAT_ADC);
+    delay(2);
+  }
+#endif
+}
+
+float readBatteryVoltage() {
+#if USE_BATTERY_ADC
+  float samples[BAT_ADC_SAMPLES];
+  int count = 0;
+
+  for (int i = 0; i < BAT_ADC_SAMPLES; i++) {
+    uint32_t mv = analogReadMilliVolts(PIN_BAT_ADC);
+    if (mv > 0) {
+      float vPin = mv / 1000.0f;
+      float vBat = vPin * ((BAT_R1 + BAT_R2) / BAT_R2);
+
+      vBat = (vBat * BAT_CAL_FACTOR) + BAT_CAL_OFFSET;
+
+      if (vBat >= BAT_MIN_VALID_V && vBat <= BAT_MAX_VALID_V) {
+        samples[count++] = vBat;
+      }
+    }
+    delay(2);
+  }
+
+  if (count <= 0) return 0.0f;
+
+  sortFloatArray(samples, count);
+
+  int trim = 0;
+  if (count >= 10) trim = count / 5;
+
+  float sum = 0.0f;
+  int used = 0;
+
+  for (int i = trim; i < count - trim; i++) {
+    sum += samples[i];
+    used++;
+  }
+
+  if (used <= 0) return 0.0f;
+  return sum / used;
+#else
+  return 0.0f;
+#endif
+}
+
+int batteryPercentFromVoltage(float v) {
+  static const float lutV[] = {
+    4.20, 4.15, 4.11, 4.08, 4.02,
+    3.98, 3.95, 3.91, 3.87, 3.85,
+    3.84, 3.82, 3.80, 3.79, 3.77,
+    3.75, 3.73, 3.71, 3.69, 3.61, 3.50
+  };
+
+  static const int lutP[] = {
+    100, 95, 90, 85, 80,
+    75, 70, 65, 60, 55,
+    50, 45, 40, 35, 30,
+    25, 20, 15, 10, 5, 0
+  };
+
+  const int n = sizeof(lutV) / sizeof(lutV[0]);
+
+  if (v >= lutV[0]) return 100;
+  if (v <= lutV[n - 1]) return 0;
+
+  for (int i = 0; i < n - 1; i++) {
+    if (v <= lutV[i] && v >= lutV[i + 1]) {
+      float vHigh = lutV[i];
+      float vLow  = lutV[i + 1];
+      int pHigh   = lutP[i];
+      int pLow    = lutP[i + 1];
+
+      float ratio = (v - vLow) / (vHigh - vLow);
+      int p = (int)(pLow + (pHigh - pLow) * ratio + 0.5f);
+
+      if (p < 0) p = 0;
+      if (p > 100) p = 100;
+      return p;
+    }
+  }
+
+  return 0;
+}
+
+void updateBatteryStatus(bool force) {
+#if USE_BATTERY_ADC
+  if (!force && (millis() - lastBatteryReadMs < BAT_READ_INTERVAL_MS)) return;
+  lastBatteryReadMs = millis();
+
+  float v = readBatteryVoltage();
+
+  if (v < BAT_MIN_VALID_V || v > BAT_MAX_VALID_V) {
+    return;
+  }
+
+  if (!batteryReady || batteryVoltage <= 0.0f) {
+    batteryVoltage = v;
+  } else {
+    batteryVoltage = batteryVoltage + (v - batteryVoltage) * BAT_FILTER_ALPHA;
+  }
+
+  float percentVoltage = batteryVoltage + BAT_PERCENT_COMP_V;
+  if (percentVoltage > 4.20f) percentVoltage = 4.20f;
+  if (percentVoltage < 3.50f) percentVoltage = 3.50f;
+
+  int newPercent = batteryPercentFromVoltage(percentVoltage);
+
+  if (!batteryReady || batteryPercent < 0) {
+    batteryPercent = newPercent;
+  } else {
+    int diff = newPercent - batteryPercent;
+    if (diff < 0) diff = -diff;
+
+    if (diff >= BAT_PERCENT_HYST) {
+      batteryPercent = newPercent;
+    }
+  }
+
+  batteryReady = true;
+
+#else
+  (void)force;
+#endif
+}
+
+String batteryText() {
+#if USE_BATTERY_ADC
+  if (!batteryReady || batteryPercent < 0) return "N/A";
+  return String(batteryPercent) + "% (" + String(batteryVoltage, 2) + "V)";
+#else
+  return "OFF";
+#endif
+}
+
+// ================== power / backlight ==================
+void setBacklightHW(bool on) {
+#if USE_TFT_BL_PIN
+  pinMode(PIN_TFT_BL, OUTPUT);
+  digitalWrite(PIN_TFT_BL, on ? TFT_BACKLIGHT_ON : !TFT_BACKLIGHT_ON);
+#else
+  (void)on;
+#endif
+}
+
+void tftSleep(bool sleepOn) {
+#if USE_TFT_SLEEP_CMD
+  if (sleepOn) {
+    tft.writecommand(0x28); delay(10);
+    tft.writecommand(0x10); delay(120);
+  } else {
+    tft.writecommand(0x11); delay(120);
+    tft.writecommand(0x29); delay(10);
+  }
+#else
+  (void)sleepOn;
+#endif
+}
+
+void setScreenPower(bool on) {
+  screenOn = on;
+  voteModalOpen = false;
+  voteConfirmMode = false;
+  pendingVoteChoiceIdx = -1;
+
+  if (!on) {
+    ws.disconnect();
+    wsConnected = false;
+    tft.fillScreen(TFT_BLACK);
+    setBacklightHW(false);
+    tftSleep(true);
+    updateStatusLed();
+  } else {
+    setBacklightHW(true);
+    tftSleep(false);
+    reconnectWs();
+    statusDirty = true;
+    goScreen((ui == SCR_SPLASH) ? SCR_STATUS : ui);
+    updateStatusLed();
+  }
+}
+
+// ================== text helpers ==================
+static inline bool isUTF8Text(const String& s){
+  for (size_t i = 0; i < s.length(); i++){
+    if ((uint8_t)s[i] & 0x80) return true;
+  }
+  return false;
+}
+
+static inline void utf8PopOne(String& s){
+  if(!s.length()) return;
+  int i=(int)s.length()-1;
+  while(i>0 && (((uint8_t)s[i]) & 0xC0)==0x80) i--;
+  s.remove(i);
+}
+
+static inline void drawTextAuto(const String& s, int32_t x, int32_t y, uint8_t builtinFont, uint8_t datum){
+  tft.setTextDatum(datum);
+  if (thaiFontReady && isUTF8Text(s)) {
+    tft.drawString(s, x, y);
+  } else {
+    tft.drawString(s, x, y, builtinFont);
+  }
+  tft.setTextDatum(TL_DATUM);
+}
+
+static String fitTextPxAuto(const String& s, int maxPx, uint8_t builtinFont) {
+  if (maxPx <= 0) return "";
+
+  int w = (thaiFontReady && isUTF8Text(s)) ? tft.textWidth(s) : tft.textWidth(s, builtinFont);
+  if (w <= maxPx) return s;
+
+  String out = s;
+  while (out.length() > 0) {
+    String trial = out + "...";
+    int tw = (thaiFontReady && isUTF8Text(trial)) ? tft.textWidth(trial) : tft.textWidth(trial, builtinFont);
+    if (tw <= maxPx) return trial;
+
+    if (thaiFontReady && isUTF8Text(out)) utf8PopOne(out);
+    else out.remove(out.length() - 1);
+  }
+  return "...";
+}
+
+// ================== theme ==================
+void uiInitTheme(){
+  C_BG       = tft.color565(247, 247, 247);
+  C_PANEL    = TFT_WHITE;
+  C_TEXT     = tft.color565(20, 20, 20);
+  C_MUTED    = tft.color565(110, 110, 110);
+  C_BTN      = tft.color565(245, 186, 41);
+  C_BTN_TEXT = TFT_BLACK;
+  C_CARD     = TFT_WHITE;
+  C_BORDER   = tft.color565(228, 228, 228);
+  C_BLUE     = tft.color565(45, 104, 159);
+  C_GREEN    = tft.color565(123, 214, 134);
+  C_SHADOW   = tft.color565(226, 226, 226);
+  C_MODAL    = tft.color565(204, 223, 245);
+  C_TRACK    = tft.color565(184, 184, 184);
+  C_BROWN    = tft.color565(133, 84, 13);
+
+  C_ST_PENDING = tft.color565(246, 223, 133);
+  C_ST_VOTING  = tft.color565(174, 235, 182);
+  C_ST_CLOSED  = tft.color565(246, 168, 168);
+
+  C_SELECTED_FILL   = tft.color565(255, 235, 170);
+  C_SELECTED_BORDER = tft.color565(232, 176, 27);
+  C_SELECTED_GLOW   = tft.color565(255, 215, 76);
+}
+
+void drawSoftCard(int x, int y, int w, int h, uint16_t fill, uint8_t radius){
+  tft.fillRoundRect(x + 2, y + 3, w, h, radius, C_SHADOW);
+  tft.fillRoundRect(x, y, w, h, radius, fill);
+  tft.drawRoundRect(x, y, w, h, radius, C_BORDER);
+}
+
+void drawButton(const UIRect& r, const String& label, uint16_t fill, uint16_t textCol, uint8_t font){
+  tft.fillRoundRect(r.x + 2, r.y + 2, r.w, r.h, 8, C_SHADOW);
+  tft.fillRoundRect(r.x, r.y, r.w, r.h, 8, fill);
+  tft.setTextColor(textCol, fill);
+  drawTextAuto(label, r.x + r.w/2, r.y + r.h/2 + 1, font, MC_DATUM);
+}
+
+void drawBackIconButton(const UIRect& r){
+  drawSoftCard(r.x, r.y, r.w, r.h, C_CARD, 6);
+  tft.setTextColor(C_BROWN, C_CARD);
+  drawTextAuto("<", r.x + r.w/2, r.y + r.h/2 + 1, 4, MC_DATUM);
+  BTN_BACK = r;
+}
+
+void drawMiniGridIcon(int x, int y, uint16_t col){
+  tft.fillRoundRect(x, y, 16, 16, 4, tft.color565(248,248,248));
+  tft.drawRoundRect(x, y, 16, 16, 4, C_BORDER);
+  tft.fillRect(x + 4, y + 4, 2, 2, col);
+  tft.fillRect(x + 10, y + 4, 2, 2, col);
+  tft.fillRect(x + 4, y + 10, 2, 2, col);
+  tft.fillRect(x + 10, y + 10, 2, 2, col);
+}
+
+void drawVerticalScrollBar(int x, int y, int h, int total, int visible, int start){
+  tft.fillRoundRect(x, y, 4, h, 2, tft.color565(235,235,235));
+
+  if (total <= visible || total <= 0 || visible <= 0) return;
+
+  int thumbH = (h * visible) / total;
+  if (thumbH < 28) thumbH = 28;
+  if (thumbH > h) thumbH = h;
+
+  int maxStart = total - visible;
+  int thumbY = y;
+  if (maxStart > 0) thumbY = y + ((h - thumbH) * start) / maxStart;
+
+  tft.fillRoundRect(x, thumbY, 4, thumbH, 2, C_TRACK);
+}
+
+void drawPageScrollBar(int x, int y, int h, int totalPages, int currentPage){
+  tft.fillRoundRect(x, y, 4, h, 2, tft.color565(235,235,235));
+
+  if (totalPages <= 1) return;
+
+  int thumbH = h / totalPages;
+  if (thumbH < 28) thumbH = 28;
+  if (thumbH > h) thumbH = h;
+
+  int maxPage = totalPages - 1;
+  int thumbY = y;
+  if (maxPage > 0) thumbY = y + ((h - thumbH) * currentPage) / maxPage;
+
+  tft.fillRoundRect(x, thumbY, 4, thumbH, 2, C_TRACK);
+}
+
+void toast(const String& msg){
+  toastHoldUntil = millis() + 900;
+  int w = tft.width(), h = tft.height();
+  tft.fillRoundRect((w/2)-120, h-40, 240, 28, 8, tft.color565(28,28,28));
+  tft.setTextColor(TFT_WHITE, tft.color565(28,28,28));
+  drawTextAuto(fitTextPxAuto(msg, 228, 2), w/2, h-26, 2, MC_DATUM);
+}
+
+uint16_t statusColor(const String& stRaw){
+  String st = lowerStr(stRaw);
+  if (st == "pending" || st == "wait") return C_ST_PENDING;
+  if (st == "voting" || st == "open" || st == "active") return C_ST_VOTING;
+  if (st == "closed" || st == "done" || st == "finish") return C_ST_CLOSED;
+  return C_ST_PENDING;
+}
+
+// ================== vote layout helper ==================
+void getVoteCardRectByVisibleIndex(int visibleIndex, int visibleCount,
+                                   UIRect &card, UIRect &imgBox, UIRect &labelBox, UIRect &voteBtn){
+  const int top = 88;
+  const int bottom = tft.height() - 16;
+  const int leftPad = 16;
+  const int rightPad = 22;
+  const int gapX = 12;
+
+  int areaW = tft.width() - leftPad - rightPad;
+  int areaH = bottom - top;
+
+  int cols = visibleCount;
+  if (cols < 1) cols = 1;
+  if (cols > 3) cols = 3;
+
+  int cardW = (areaW - (cols - 1) * gapX) / cols;
+  int cardH = areaH - 8;
+
+  if (cardW > 136) cardW = 136;
+  if (cardH > 188) cardH = 188;
+  if (cardH < 170) cardH = 170;
+
+  int totalRowW = cols * cardW + (cols - 1) * gapX;
+  int startX = leftPad + (areaW - totalRowW) / 2;
+  int startY = top + (areaH - cardH) / 2;
+
+  card = {
+    (int16_t)(startX + visibleIndex * (cardW + gapX)),
+    (int16_t)startY,
+    (int16_t)cardW,
+    (int16_t)cardH
+  };
+
+  const int pad = 10;
+  const int imgSize = 74;
+  const int labelH = 20;
+  const int btnH = 28;
+  const int spacing1 = 10;
+  const int spacing2 = 12;
+
+  imgBox = {
+    (int16_t)(card.x + (card.w - imgSize) / 2),
+    (int16_t)(card.y + pad),
+    (int16_t)imgSize,
+    (int16_t)imgSize
+  };
+
+  labelBox = {
+    (int16_t)(card.x + 8),
+    (int16_t)(imgBox.y + imgBox.h + spacing1),
+    (int16_t)(card.w - 16),
+    (int16_t)labelH
+  };
+
+  int btnW = card.w - 32;
+  if (btnW < 82) btnW = 82;
+
+  voteBtn = {
+    (int16_t)(card.x + (card.w - btnW) / 2),
+    (int16_t)(labelBox.y + labelBox.h + spacing2),
+    (int16_t)btnW,
+    (int16_t)btnH
+  };
+}
+
+// ================== touch calibration ==================
+static bool loadTouchCal(uint16_t cal[5], uint8_t rot){
+  Preferences p;
+  p.begin("touch", true);
+  uint8_t savedRot = p.getUChar("rot", 255);
+  size_t len = p.getBytesLength("cal");
+  if (savedRot != rot || len != sizeof(uint16_t)*5) { p.end(); return false; }
+  p.getBytes("cal", cal, sizeof(uint16_t)*5);
+  p.end();
+  return true;
+}
+
+static void saveTouchCal(const uint16_t cal[5], uint8_t rot){
+  Preferences p;
+  p.begin("touch", false);
+  p.putUChar("rot", rot);
+  p.putBytes("cal", cal, sizeof(uint16_t)*5);
+  p.end();
+}
+
+static void clearTouchCal(){
+  Preferences p;
+  p.begin("touch", false);
+  p.clear();
+  p.end();
+}
+
+bool readTouchOnce(uint16_t &x, uint16_t &y){
+  if (!tft.getTouch(&x, &y)) return false;
+
+  if (x < TOUCH_EDGE_PAD || y < TOUCH_EDGE_PAD) return false;
+  if (x >= (tft.width()  - TOUCH_EDGE_PAD)) return false;
+  if (y >= (tft.height() - TOUCH_EDGE_PAD)) return false;
+
+  return true;
+}
+
+// ================== HTTP helpers ==================
+bool beginHttpClient(HTTPClient &http, WiFiClientSecure &secureClient, const String& url){
+  secureClient.setInsecure();
+  return http.begin(secureClient, url);
+}
+
+bool serverGet(const String& url, String& responseBody, int& statusCode, uint16_t timeoutMs = 8000){
+  HTTPClient http;
+  WiFiClientSecure secureClient;
+
+  DBG("GET: " + url);
+
+  http.setTimeout(timeoutMs);
+  http.setReuse(false);
+  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+
+  if(!beginHttpClient(http, secureClient, url)){
+    statusCode = -1;
+    responseBody = "";
+    DBG("GET begin failed");
+    return false;
+  }
+
+  http.addHeader("Accept", "application/json");
+  statusCode = http.GET();
+  responseBody = http.getString();
+  DBG("GET code: " + String(statusCode));
+  http.end();
+  return true;
+}
+
+bool serverPostJson(const String& url, const String& requestBody, String& responseBody, int& statusCode, uint16_t timeoutMs = 8000){
+  HTTPClient http;
+  WiFiClientSecure secureClient;
+
+  DBG("POST: " + url);
+  DBG("BODY: " + requestBody);
+
+  http.setTimeout(timeoutMs);
+  http.setReuse(false);
+  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+
+  if(!beginHttpClient(http, secureClient, url)){
+    statusCode = -1;
+    responseBody = "";
+    return false;
+  }
+
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("Accept", "application/json");
+
+  statusCode = http.POST(requestBody);
+  responseBody = http.getString();
+  DBG("POST code: " + String(statusCode));
+  http.end();
+  return true;
+}
+
+// ================== JSON helpers ==================
+static String pickStr(
+  JsonVariantConst obj,
+  const char* k1,
+  const char* k2 = nullptr,
+  const char* k3 = nullptr,
+  const char* k4 = nullptr,
+  const char* k5 = nullptr,
+  const char* k6 = nullptr,
+  const char* k7 = nullptr,
+  const char* k8 = nullptr,
+  const char* def = ""
+){
+  const char* keys[] = { k1, k2, k3, k4, k5, k6, k7, k8 };
+  for(size_t i=0;i<8;i++){
+    const char* k = keys[i];
+    if(!k) continue;
+    if(obj[k].is<const char*>()){
+      const char* v = obj[k];
+      if(v && *v) return String(v);
+    }
+  }
+  return String(def);
+}
+
+String extractShowIdFromVar(JsonVariantConst v){
+  if (v.isNull()) return "";
+
+  String sid = pickStr(v, "showId", "show_id");
+  if (sid.length()) return sid;
+
+  if (v["show"].is<JsonObjectConst>()) {
+    JsonObjectConst show = v["show"].as<JsonObjectConst>();
+    sid = pickStr(show, "id", "showId", "show_id", "uuid");
+    if (sid.length()) return sid;
+  }
+
+  if (v["round"].is<JsonObjectConst>()) {
+    JsonObjectConst round = v["round"].as<JsonObjectConst>();
+    sid = pickStr(round, "showId", "show_id");
+    if (sid.length()) return sid;
+  }
+
+  return "";
+}
+
+String extractRoundIdFromVar(JsonVariantConst v){
+  if (v.isNull()) return "";
+  String rid = pickStr(v, "roundId", "round_id", "id");
+  if (rid.length()) return rid;
+
+  if (v["round"].is<JsonObjectConst>()) {
+    JsonObjectConst round = v["round"].as<JsonObjectConst>();
+    rid = pickStr(round, "id", "roundId", "round_id");
+    if (rid.length()) return rid;
+  }
+
+  if (v["poll"].is<JsonObjectConst>()) {
+    JsonObjectConst poll = v["poll"].as<JsonObjectConst>();
+    rid = pickStr(poll, "id", "roundId", "round_id");
+    if (rid.length()) return rid;
+  }
+
+  return "";
+}
+
+bool wsPayloadMatchesShow(JsonVariantConst root){
+  if (!SHOW_ID.length() || SHOW_ID == DEFAULT_SHOW_ID) return true;
+  String sid = extractShowIdFromVar(root);
+  if (!sid.length()) return true;
+  return sid == SHOW_ID;
+}
+
+// ================== WiFi ==================
+void startWiFi(){
+  WiFi.mode(WIFI_STA);
+  WiFi.setSleep(false);
+  WiFi.setAutoReconnect(true);
+  WiFi.disconnect(true);
+  delay(200);
+  WiFi.begin(WIFI_SSID, WIFI_PASS);
+  wifiLastAttemptMs = millis();
+}
+
+void maintainWiFi(){
+  if(WiFi.status() == WL_CONNECTED) return;
+
+  if(millis() - wifiLastAttemptMs > WIFI_RETRY_MS){
+    wifiLastAttemptMs = millis();
+    WiFi.disconnect();
+    delay(200);
+    WiFi.begin(WIFI_SSID, WIFI_PASS);
+  }
+}
+
+// ================== image helpers ==================
+String normalizeUrl(const String& u){
+  if (!u.length()) return "";
+  if (u.startsWith("http://") || u.startsWith("https://")) return u;
+  if (u.startsWith("//")) return serverScheme() + ":" + u;
+  if (u.startsWith("/"))  return String(SERVER_BASE_URL) + u;
+  return String(SERVER_BASE_URL) + "/" + u;
+}
+
+String cloudinaryThumbUrl(const String& rawUrl, int w, int h){
+  String url = normalizeUrl(rawUrl);
+  if (!url.length()) return "";
+
+  if (url.indexOf("res.cloudinary.com") < 0) return url;
+
+  int pos = url.indexOf("/image/upload/");
+  if (pos < 0) return url;
+
+  String head = url.substring(0, pos + 14);
+  String tail = url.substring(pos + 14);
+
+  if (tail.startsWith("f_jpg") || tail.startsWith("c_fill") ||
+      tail.startsWith("w_") || tail.startsWith("q_auto")) {
+    return url;
+  }
+
+  String transform =
+    "f_jpg,q_auto,c_fill,g_auto,w_" + String(w) + ",h_" + String(h) + "/";
+
+  return head + transform + tail;
+}
+
+String imageCachePathForId(const String& id){
+  String safe = id;
+  safe.replace("/", "_");
+  safe.replace("\\", "_");
+  safe.replace(":", "_");
+  safe.replace("?", "_");
+  return "/c_v5_" + safe + ".jpg";
+}
+
+bool urlLooksLikeJpeg(String url){
+  url.toLowerCase();
+  int q = url.indexOf('?');
+  if(q >= 0) url = url.substring(0, q);
+  return url.endsWith(".jpg") || url.endsWith(".jpeg") || url.endsWith(".jfif");
+}
+
+bool httpDownloadToFile(const String& urlRaw, const String& path){
+  if (!littlefsReady || WiFi.status() != WL_CONNECTED) return false;
+
+  String url = cloudinaryThumbUrl(urlRaw, 72, 72);
+  if (!url.length()) return false;
+
+  HTTPClient http;
+  WiFiClientSecure secureClient;
+
+  http.setTimeout(15000);
+  http.setReuse(false);
+  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+
+  if(!beginHttpClient(http, secureClient, url)) return false;
+
+  int code = http.GET();
+  if (code != 200) {
+    http.end();
+    return false;
+  }
+
+  String ctype = http.header("Content-Type");
+  String ctypeL = ctype;
+  ctypeL.toLowerCase();
+
+  bool jpegOk =
+    (ctypeL.indexOf("jpeg") >= 0) ||
+    (ctypeL.indexOf("jpg") >= 0) ||
+    (ctypeL.indexOf("jfif") >= 0) ||
+    urlLooksLikeJpeg(url);
+
+  if(!jpegOk){
+    http.end();
+    return false;
+  }
+
+  File f = LittleFS.open(path, "w");
+  if (!f) {
+    http.end();
+    return false;
+  }
+
+  WiFiClient* stream = http.getStreamPtr();
+  uint8_t buff[512];
+  int remaining = http.getSize();
+  uint32_t lastDataMs = millis();
+
+  while (http.connected() && (remaining > 0 || remaining == -1)) {
+    size_t avail = stream->available();
+    if (avail) {
+      int r = stream->readBytes(buff, (avail > sizeof(buff)) ? sizeof(buff) : avail);
+      if (r > 0) {
+        f.write(buff, r);
+        if (remaining > 0) remaining -= r;
+        lastDataMs = millis();
+      }
+    } else {
+      delay(1);
+      if(millis() - lastDataMs > 6000) break;
+    }
+  }
+
+  f.close();
+  http.end();
+
+  return LittleFS.exists(path);
+}
+
+// ================== JPEG render ==================
+static inline int16_t iMin(int16_t a, int16_t b){ return (a < b) ? a : b; }
+static inline int16_t iMax(int16_t a, int16_t b){ return (a > b) ? a : b; }
+
+static void renderJPEGClip(int16_t xpos, int16_t ypos,
+                           int16_t clipX, int16_t clipY, int16_t clipW, int16_t clipH) {
+  uint16_t jpgW = JpegDec.width;
+  uint16_t jpgH = JpegDec.height;
+
+  int16_t screenW = tft.width();
+  int16_t screenH = tft.height();
+
+  int16_t clipR = clipX + clipW;
+  int16_t clipB = clipY + clipH;
+
+  static uint16_t blockBuf[16 * 16];
+
+  tft.startWrite();
+
+  while (JpegDec.read()) {
+    int16_t rawX = JpegDec.MCUx * JpegDec.MCUWidth  + xpos;
+    int16_t rawY = JpegDec.MCUy * JpegDec.MCUHeight + ypos;
+
+    int16_t rawW = JpegDec.MCUWidth;
+    int16_t rawH = JpegDec.MCUHeight;
+
+    if (rawX + rawW > xpos + (int16_t)jpgW) rawW = (xpos + (int16_t)jpgW) - rawX;
+    if (rawY + rawH > ypos + (int16_t)jpgH) rawH = (ypos + (int16_t)jpgH) - rawY;
+
+    if (rawW <= 0 || rawH <= 0) continue;
+
+    int16_t visX0 = iMax(rawX, 0);
+    int16_t visY0 = iMax(rawY, 0);
+    int16_t visX1 = iMin((int16_t)(rawX + rawW), screenW);
+    int16_t visY1 = iMin((int16_t)(rawY + rawH), screenH);
+
+    visX0 = iMax(visX0, clipX);
+    visY0 = iMax(visY0, clipY);
+    visX1 = iMin(visX1, clipR);
+    visY1 = iMin(visY1, clipB);
+
+    int16_t visW = visX1 - visX0;
+    int16_t visH = visY1 - visY0;
+
+    if (visW <= 0 || visH <= 0) continue;
+
+    uint16_t* src = (uint16_t*)JpegDec.pImage;
+    int16_t srcStride = JpegDec.MCUWidth;
+
+    int16_t offX = visX0 - rawX;
+    int16_t offY = visY0 - rawY;
+
+    bool fullBlockDirect =
+      (rawW == JpegDec.MCUWidth) &&
+      (rawH == JpegDec.MCUHeight) &&
+      (offX == 0) &&
+      (offY == 0) &&
+      (visW == rawW) &&
+      (visH == rawH);
+
+    if (fullBlockDirect) {
+      tft.pushImage(visX0, visY0, visW, visH, src);
+    } else {
+      for (int yy = 0; yy < visH; yy++) {
+        memcpy(&blockBuf[yy * visW],
+               &src[(offY + yy) * srcStride + offX],
+               visW * sizeof(uint16_t));
+      }
+      tft.pushImage(visX0, visY0, visW, visH, blockBuf);
+    }
+  }
+
+  tft.endWrite();
+}
+
+static bool drawJpegFromFSInBox(const String& path, int boxX, int boxY, int boxW, int boxH){
+  if (!littlefsReady) return false;
+  if (!LittleFS.exists(path)) return false;
+  if (!JpegDec.decodeFsFile(path.c_str())) return false;
+
+  int16_t drawX = boxX + (boxW - (int16_t)JpegDec.width)  / 2;
+  int16_t drawY = boxY + (boxH - (int16_t)JpegDec.height) / 2;
+
+  renderJPEGClip(drawX, drawY, boxX, boxY, boxW, boxH);
+  return true;
+}
+
+const char* pickSplashPath(){
+  static const char* cands[] = {
+    "/VoteNext.jpg", "/VoteNext.JPG",
+    "/votenext.jpg", "/votenext.JPG"
+  };
+  for(size_t i=0;i<sizeof(cands)/sizeof(cands[0]);i++){
+    if(LittleFS.exists(cands[i])) return cands[i];
+  }
+  return nullptr;
+}
+
+// ================== data parsing ==================
+void clearChoices(){
+  choiceCount = 0;
+  voteScroll = 0;
+  for(int i=0;i<MAX_CHOICES;i++){
+    choices[i].id = "";
+    choices[i].label = "";
+    choices[i].imgUrl = "";
+    choices[i].imgPath = "";
+    choices[i].imgReady = false;
+  }
+}
+
+void loadChoicesFromArray(JsonArrayConst arr){
+  clearChoices();
+
+  for(JsonVariantConst v : arr){
+    if(choiceCount >= MAX_CHOICES) break;
+    if(!v.is<JsonObjectConst>()) continue;
+
+    JsonObjectConst o = v.as<JsonObjectConst>();
+
+    JsonObjectConst nested;
+    bool hasNested = false;
+
+    if(o["contestant"].is<JsonObjectConst>()){
+      nested = o["contestant"].as<JsonObjectConst>();
+      hasNested = true;
+    } else if(o["candidate"].is<JsonObjectConst>()){
+      nested = o["candidate"].as<JsonObjectConst>();
+      hasNested = true;
+    }
+
+    String cid = pickStr(o,
+      "contestantId", "contestant_id", "candidateId", "candidate_id",
+      "id", "uuid", "key"
+    );
+
+    if(!cid.length() && hasNested){
+      cid = pickStr(nested,
+        "contestantId", "contestant_id", "candidateId", "candidate_id",
+        "id", "uuid", "key"
+      );
+    }
+    if(!cid.length()) continue;
+
+    String lbl = pickStr(o,
+      "stage_name", "contestantName", "contestant_name", "candidateName",
+      "label", "name", "title", "displayName"
+    );
+
+    if(!lbl.length() && hasNested){
+      lbl = pickStr(nested,
+        "stage_name", "contestantName", "contestant_name", "candidateName",
+        "label", "name", "title", "displayName"
+      );
+    }
+
+    if(!lbl.length()) lbl = cid;
+
+    String img = pickStr(o,
+      "image_url", "imageUrl", "photo_url", "photoUrl",
+      "imgUrl", "img", "avatar", "picture"
+    );
+
+    if(!img.length() && hasNested){
+      img = pickStr(nested,
+        "image_url", "imageUrl", "photo_url", "photoUrl",
+        "imgUrl", "img", "avatar", "picture"
+      );
+    }
+
+    choices[choiceCount].id       = cid;
+    choices[choiceCount].label    = lbl;
+    choices[choiceCount].imgUrl   = img;
+    choices[choiceCount].imgPath  = imageCachePathForId(cid);
+    choices[choiceCount].imgReady = LittleFS.exists(choices[choiceCount].imgPath);
+    choiceCount++;
+  }
+
+  needImagePreload = (choiceCount > 0);
+  imgDlIndex = 0;
+}
+
+bool fetchRoomsPayload(String& body){
+  if(WiFi.status() != WL_CONNECTED) return false;
+
+  int code = 0;
+
+  if (SHOW_ID.length() && !isPlaceholderShowId(SHOW_ID)) {
+    String url1 = String(SERVER_BASE_URL) + String(ROOMS_HTTP_PATH) + "?showId=" + SHOW_ID;
+    if (serverGet(url1, body, code, 8000) && code == 200 && body.length()) return true;
+  }
+
+  String url2 = String(SERVER_BASE_URL) + String(ROOMS_HTTP_PATH);
+  if (serverGet(url2, body, code, 8000) && code == 200 && body.length()) return true;
+
+  return false;
+}
+
+void addPollFromObject(JsonVariantConst o){
+  if (!o.is<JsonObjectConst>()) return;
+  if (pollCount >= MAX_POLLS) return;
+
+  bool deleted =
+    jsonTruthy(o["deleted"]) ||
+    jsonTruthy(o["isDeleted"]) ||
+    jsonTruthy(o["is_deleted"]);
+
+  String deletedAt = pickStr(o, "deletedAt", "deleted_at", "removedAt", "removed_at");
+  if (deleted || deletedAt.length()) return;
+
+  String voteMode = pickStr(o, "vote_mode", "voteMode");
+  if (!isRemoteVoteMode(voteMode)) return;
+
+  String rowShowId = pickStr(o, "show_id", "showId");
+  if (rowShowId.length() && SHOW_ID.length() && !isPlaceholderShowId(SHOW_ID) && rowShowId != SHOW_ID) {
+    return;
+  }
+
+  String status = pickStr(o, "status", "round_status", nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, "pending");
+  if (!isDisplayableStatus(status)) return;
+
+  String id = pickStr(o, "round_id", "roundId", "id", "uuid");
+  if (!id.length()) return;
+
+  for (int i=0;i<pollCount;i++){
+    if (polls[i].id == id) return;
+  }
+
+  String title = pickStr(o, "title", "round_name", "name", "label", nullptr, nullptr, nullptr, nullptr, id.c_str());
+  String desc  = pickStr(o, "description", "desc", "details", "note", "subtitle");
+  String createdAt = pickStr(o, "created_at", "createdAt", "start_time");
+
+  polls[pollCount++] = { id, title, desc, trimLower(status), createdAt, voteMode, rowShowId };
+}
+
+bool tryParsePollArray(JsonVariantConst src){
+  if (!src.is<JsonArrayConst>()) return false;
+  JsonArrayConst arr = src.as<JsonArrayConst>();
+  for (JsonVariantConst v : arr) addPollFromObject(v);
+  return true;
+}
+
+bool parsePollListFromJson(const String& body){
+  DynamicJsonDocument doc(65536);
+  if(deserializeJson(doc, body)) return false;
+
+  pollCount = 0;
+
+  if (tryParsePollArray(doc.as<JsonVariantConst>())) return (pollCount > 0);
+  if (tryParsePollArray(doc["data"])) return (pollCount > 0);
+  if (tryParsePollArray(doc["rooms"])) return (pollCount > 0);
+  if (tryParsePollArray(doc["rounds"])) return (pollCount > 0);
+  if (tryParsePollArray(doc["items"])) return (pollCount > 0);
+  if (tryParsePollArray(doc["rows"])) return (pollCount > 0);
+
+  if (doc["data"].is<JsonObjectConst>()) {
+    JsonVariantConst data = doc["data"].as<JsonVariantConst>();
+    if (tryParsePollArray(data["rooms"])) return (pollCount > 0);
+    if (tryParsePollArray(data["rounds"])) return (pollCount > 0);
+    if (tryParsePollArray(data["items"])) return (pollCount > 0);
+    if (tryParsePollArray(data["rows"])) return (pollCount > 0);
+  }
+
+  JsonVariantConst one = doc["room"].is<JsonObjectConst>() ? doc["room"].as<JsonVariantConst>()
+                        : doc["round"].is<JsonObjectConst>() ? doc["round"].as<JsonVariantConst>()
+                        : doc["poll"].is<JsonObjectConst>() ? doc["poll"].as<JsonVariantConst>()
+                        : doc["data"].is<JsonObjectConst>() ? doc["data"].as<JsonVariantConst>()
+                        : doc.as<JsonVariantConst>();
+
+  if (one.is<JsonObjectConst>()) {
+    String id = pickStr(one, "round_id", "roundId", "id", "uuid");
+    if (id.length()) {
+      addPollFromObject(one);
+      return (pollCount > 0);
+    }
+  }
+
+  return false;
+}
+
+void buildFallbackPollFromActive(){
+  if (pollCount > 0) return;
+  if (!activeRoundId.length()) return;
+
+  polls[0].id = activeRoundId;
+  polls[0].title = activeRoundTitle.length() ? activeRoundTitle : "Active Poll";
+  polls[0].description = "";
+  polls[0].status = "voting";
+  polls[0].createdAt = "";
+  polls[0].voteMode = "remote";
+  polls[0].showId = SHOW_ID;
+  pollCount = 1;
+
+  if (selectedPollIndex < 0) {
+    selectedPollIndex = 0;
+    selectedPollId = polls[0].id;
+    selectedPollTitle = polls[0].title;
+    selectedPollDesc = polls[0].description;
+    selectedPollStatus = polls[0].status;
+  }
+}
+
+bool fetchPollListHTTP(){
+  if(WiFi.status() != WL_CONNECTED) return false;
+  if(!SHOW_ID.length() || isPlaceholderShowId(SHOW_ID)) {
+    DBG("SHOW_ID invalid");
+    return false;
+  }
+
+  String body;
+  bool ok = false;
+
+  if (fetchRoomsPayload(body)) {
+    DBG("Rooms body len: " + String(body.length()));
+    ok = parsePollListFromJson(body);
+  }
+
+  if (!ok) {
+    buildFallbackPollFromActive();
+    ok = (pollCount > 0);
+  }
+
+  for (int i=0;i<pollCount-1;i++){
+    for (int j=i+1;j<pollCount;j++){
+      bool jVoting = isVotingStatus(polls[j].status);
+      bool iVoting = isVotingStatus(polls[i].status);
+
+      bool swapNeeded = false;
+      if (jVoting && !iVoting) swapNeeded = true;
+      else if (jVoting == iVoting && shortDate(polls[j].createdAt) > shortDate(polls[i].createdAt)) swapNeeded = true;
+
+      if (swapNeeded) {
+        PollItem tmp = polls[i];
+        polls[i] = polls[j];
+        polls[j] = tmp;
+      }
+    }
+  }
+
+  if (!activeRoundId.length()) {
+    for (int i = 0; i < pollCount; i++) {
+      if (isVotingStatus(polls[i].status)) {
+        activeRoundId = polls[i].id;
+        activeRoundTitle = polls[i].title;
+        break;
+      }
+    }
+  }
+
+  if (selectedPollId.length()) {
+    selectedPollIndex = -1;
+    for (int i=0;i<pollCount;i++) {
+      if (polls[i].id == selectedPollId) {
+        selectedPollIndex = i;
+        selectedPollStatus = polls[i].status;
+        selectedPollTitle  = polls[i].title;
+        selectedPollDesc   = polls[i].description;
+        break;
+      }
+    }
+  }
+
+  if (selectedPollIndex < 0 && pollCount > 0) {
+    selectedPollIndex = 0;
+    selectedPollId    = polls[0].id;
+    selectedPollTitle = polls[0].title;
+    selectedPollDesc  = polls[0].description;
+    selectedPollStatus= polls[0].status;
+  }
+
+  if (pollScroll >= pollCount) pollScroll = 0;
+
+  DBG("pollCount = " + String(pollCount));
+  return (pollCount > 0);
+}
+
+bool loadSelectedPollFromRoomsHTTP(const String& rid){
+  if (WiFi.status() != WL_CONNECTED) return false;
+  if (!rid.length()) return false;
+
+  String body;
+  if (!fetchRoomsPayload(body)) return false;
+
+  DynamicJsonDocument doc(65536);
+  if (deserializeJson(doc, body)) return false;
+
+  JsonArrayConst arr;
+  if (doc.is<JsonArrayConst>()) arr = doc.as<JsonArrayConst>();
+  else if (doc["data"].is<JsonArrayConst>()) arr = doc["data"].as<JsonArrayConst>();
+  else if (doc["rooms"].is<JsonArrayConst>()) arr = doc["rooms"].as<JsonArrayConst>();
+  else if (doc["rounds"].is<JsonArrayConst>()) arr = doc["rounds"].as<JsonArrayConst>();
+  else return false;
+
+  for (JsonVariantConst v : arr) {
+    if (!v.is<JsonObjectConst>()) continue;
+
+    String id = pickStr(v, "round_id", "roundId", "id", "uuid");
+    if (id != rid) continue;
+
+    String voteMode = pickStr(v, "vote_mode", "voteMode");
+    if (!isRemoteVoteMode(voteMode)) continue;
+
+    String rowShowId = pickStr(v, "show_id", "showId");
+    if (rowShowId.length() && SHOW_ID.length() && !isPlaceholderShowId(SHOW_ID) && rowShowId != SHOW_ID) {
+      continue;
+    }
+
+    selectedPollId = rid;
+    selectedPollTitle = pickStr(v, "title", "round_name", "name", "label");
+    selectedPollDesc = pickStr(v, "description", "desc", "details", "note", "subtitle");
+    selectedPollStatus = trimLower(pickStr(v, "status", "round_status", nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, "pending"));
+    pollOpen = isVotingStatus(selectedPollStatus);
+
+    JsonArrayConst choicesArr;
+    if (v["contestants"].is<JsonArrayConst>())      choicesArr = v["contestants"].as<JsonArrayConst>();
+    else if (v["choices"].is<JsonArrayConst>())     choicesArr = v["choices"].as<JsonArrayConst>();
+    else if (v["options"].is<JsonArrayConst>())     choicesArr = v["options"].as<JsonArrayConst>();
+    else if (v["items"].is<JsonArrayConst>())       choicesArr = v["items"].as<JsonArrayConst>();
+    else if (v["candidates"].is<JsonArrayConst>())  choicesArr = v["candidates"].as<JsonArrayConst>();
+
+    if (choicesArr.isNull()) {
+      clearChoices();
+      return false;
+    }
+
+    loadChoicesFromArray(choicesArr);
+    return (choiceCount > 0);
+  }
+
+  return false;
+}
+
+bool fetchRoundDetailViaHttp(const String& rid){
+  if(WiFi.status() != WL_CONNECTED) return false;
+  if(!rid.length()) return false;
+
+  if (loadSelectedPollFromRoomsHTTP(rid)) return true;
+
+  String body;
+  int code = 0;
+  String url = String(SERVER_BASE_URL) + String(ROUND_DETAIL_HTTP_PATH) + rid;
+
+  if(!serverGet(url, body, code, 8000)) return false;
+  if(code != 200) return false;
+
+  DynamicJsonDocument doc(65536);
+  if(deserializeJson(doc, body)) return false;
+
+  JsonVariantConst root;
+  if(doc["data"].is<JsonObjectConst>() || doc["data"].is<JsonArrayConst>()) root = doc["data"].as<JsonVariantConst>();
+  else root = doc.as<JsonVariantConst>();
+
+  if(root["round"].is<JsonObjectConst>()) root = root["round"];
+  if(!root.is<JsonObjectConst>()) return false;
+
+  String voteMode = pickStr(root, "vote_mode", "voteMode");
+  if (voteMode.length() && !isRemoteVoteMode(voteMode)) return false;
+
+  String rowShowId = pickStr(root, "show_id", "showId");
+  if (rowShowId.length() && SHOW_ID.length() && !isPlaceholderShowId(SHOW_ID) && rowShowId != SHOW_ID) {
+    return false;
+  }
+
+  selectedPollId = rid;
+
+  String ttl = pickStr(root, "title", "round_name", "name");
+  if(ttl.length()) selectedPollTitle = ttl;
+
+  String desc = pickStr(root, "description", "desc", "details", "note", "subtitle");
+  selectedPollDesc = desc;
+
+  String st = pickStr(root, "status", "round_status");
+  if (st.length()) {
+    selectedPollStatus = trimLower(st);
+    pollOpen = isVotingStatus(selectedPollStatus);
+  }
+
+  JsonArrayConst arr;
+  if(root["contestants"].is<JsonArrayConst>())            arr = root["contestants"].as<JsonArrayConst>();
+  else if(root["choices"].is<JsonArrayConst>())           arr = root["choices"].as<JsonArrayConst>();
+  else if(root["options"].is<JsonArrayConst>())           arr = root["options"].as<JsonArrayConst>();
+  else if(root["items"].is<JsonArrayConst>())             arr = root["items"].as<JsonArrayConst>();
+  else if(root["candidates"].is<JsonArrayConst>())        arr = root["candidates"].as<JsonArrayConst>();
+  else if(root["round_contestants"].is<JsonArrayConst>()) arr = root["round_contestants"].as<JsonArrayConst>();
+  else if(root["data"].is<JsonArrayConst>())              arr = root["data"].as<JsonArrayConst>();
+
+  if(arr.isNull()){
+    clearChoices();
+    return false;
+  }
+
+  loadChoicesFromArray(arr);
+  return (choiceCount > 0);
+}
+
+bool fetchActiveViaHttp(){
+  if(WiFi.status() != WL_CONNECTED) return false;
+  if(!SHOW_ID.length() || isPlaceholderShowId(SHOW_ID)) return false;
+
+  auto tryUrl = [&](const String& url)->bool{
+    int code = 0;
+    String raw;
+    if(!serverGet(url, raw, code, 6000)) return false;
+    if(code != 200) return false;
+
+    DynamicJsonDocument doc(49152);
+    if(deserializeJson(doc, raw)) return false;
+
+    JsonVariantConst root;
+    if (doc["payload"].is<JsonObjectConst>() || doc["payload"].is<JsonArrayConst>()) root = doc["payload"].as<JsonVariantConst>();
+    else if (doc["data"].is<JsonObjectConst>() || doc["data"].is<JsonArrayConst>()) root = doc["data"].as<JsonVariantConst>();
+    else if (doc["active"].is<JsonObjectConst>() || doc["active"].is<JsonArrayConst>()) root = doc["active"].as<JsonVariantConst>();
+    else root = doc.as<JsonVariantConst>();
+
+    if (root.isNull()) {
+      activeRoundId = "";
+      activeRoundTitle = "";
+      return true;
+    }
+
+    if (root["poll"].is<JsonObjectConst>()) root = root["poll"];
+    if (root["round"].is<JsonObjectConst>()) root = root["round"];
+
+    activeRoundId = pickStr(root, "id", "roundId", "round_id");
+    activeRoundTitle = pickStr(root, "title", "round_name", "name");
+    DBG("activeRoundId = " + activeRoundId);
+    return true;
+  };
+
+  String u1 = String(SERVER_BASE_URL) + String(DEVICE_ACTIVE_HTTP_PATH1) + "?showId=" + SHOW_ID;
+  if(tryUrl(u1)) return true;
+
+  String u2 = String(SERVER_BASE_URL) + String(DEVICE_ACTIVE_HTTP_PATH2) + SHOW_ID;
+  if(tryUrl(u2)) return true;
+
+  return false;
+}
+
+bool refreshPollList(){
+  bool ok = fetchPollListHTTP();
+  if (!ok && activeRoundId.length()) {
+    buildFallbackPollFromActive();
+    ok = (pollCount > 0);
+  }
+  return ok;
+}
+
+void selectPollByIndex(int i){
+  if (i < 0 || i >= pollCount) return;
+
+  selectedPollIndex = i;
+  selectedPollId    = polls[i].id;
+  selectedPollTitle = polls[i].title;
+  selectedPollDesc  = polls[i].description;
+  selectedPollStatus= polls[i].status;
+  pollOpen          = isVotingStatus(selectedPollStatus);
+
+  clearChoices();
+  fetchRoundDetailViaHttp(selectedPollId);
+
+  pollDirty = true;
+}
+
+void resolveShowId(){
+  String stored = "";
+  prefs.begin("vote_next", true);
+  stored = prefs.getString("showId", "");
+  prefs.end();
+
+#if FORCE_USE_DEFAULT_SHOW_ID
+  if (!isPlaceholderShowId(DEFAULT_SHOW_ID)) {
+    SHOW_ID = DEFAULT_SHOW_ID;
+  } else {
+    SHOW_ID = stored;
+  }
+#else
+  SHOW_ID = stored.length() ? stored : DEFAULT_SHOW_ID;
+#endif
+
+  DBG("Resolved SHOW_ID = " + SHOW_ID);
+}
+
+// ================== WS ==================
+void requestActivePoll() {
+  if (!wsConnected || !screenOn) return;
+  if (!SHOW_ID.length() || isPlaceholderShowId(SHOW_ID)) return;
+
+  StaticJsonDocument<256> doc;
+  doc["type"] = "get_active";
+  doc["showId"] = SHOW_ID;
+
+  String out;
+  serializeJson(doc, out);
+  ws.sendTXT(out);
+}
+
+void reconnectWs() {
+  if (!screenOn) return;
+
+  String path = "/ws/device?deviceId=" + deviceId();
+
+  ws.beginSSL(SERVER_HOST, SERVER_PORT, path.c_str());
+  ws.onEvent(wsEvent);
+  ws.setReconnectInterval(2000);
+}
+
+void preloadChoiceImagesTick(){
+  if (!needImagePreload) return;
+  if (WiFi.status() != WL_CONNECTED) return;
+
+  if (imgDlIndex >= choiceCount) {
+    needImagePreload = false;
+    voteDirty = true;
+    return;
+  }
+
+  Choice &c = choices[imgDlIndex];
+  if (c.imgUrl.length() && c.imgPath.length()) {
+    if (LittleFS.exists(c.imgPath)) {
+      c.imgReady = true;
+    } else {
+      bool ok = httpDownloadToFile(c.imgUrl, c.imgPath);
+      c.imgReady = ok;
+    }
+  }
+  imgDlIndex++;
+
+  if (imgDlIndex >= choiceCount) {
+    needImagePreload = false;
+    voteDirty = true;
+  }
+}
+
+// ================== UI screens ==================
+void drawSplash(){
+  voteModalOpen = false;
+  voteConfirmMode = false;
+  pendingVoteChoiceIdx = -1;
+  rectReset(BTN_DONE);
+  rectReset(BTN_CONFIRM_YES);
+  rectReset(BTN_CONFIRM_BACK);
+
+  tft.fillScreen(C_BG);
+
+  const char* p = littlefsReady ? pickSplashPath() : nullptr;
+  if(p){
+    JpegDec.decodeFsFile(p);
+    int x = (tft.width() - (int)JpegDec.width) / 2;
+    int y = (tft.height() - (int)JpegDec.height) / 2;
+    renderJPEGClip(x, y, 0, 0, tft.width(), tft.height());
+  } else {
+    tft.setTextColor(C_TEXT, C_BG);
+    drawTextAuto("VoteNext", tft.width()/2, tft.height()/2 - 10, 4, MC_DATUM);
+    tft.setTextColor(C_MUTED, C_BG);
+    drawTextAuto("Loading...", tft.width()/2, tft.height()/2 + 24, 2, MC_DATUM);
+  }
+}
+
+void drawStatus(){
+  voteModalOpen = false;
+  voteConfirmMode = false;
+  pendingVoteChoiceIdx = -1;
+  rectReset(BTN_DONE);
+  rectReset(BTN_CONFIRM_YES);
+  rectReset(BTN_CONFIRM_BACK);
+
+  tft.fillScreen(C_BG);
+
+  tft.setTextColor(C_TEXT, C_BG);
+  drawTextAuto("STATUS", tft.width()/2, 30, 4, MC_DATUM);
+
+  bool openByActive   = activeRoundId.length() > 0;
+  bool openBySelected = isVotingStatus(selectedPollStatus);
+  bool openByList     = hasAnyVotingPoll();
+
+  String pollText = (openByActive || openBySelected || openByList) ? "Open" : "Closed";
+  String wifiText = (WiFi.status() == WL_CONNECTED ? "OK" : "Fail");
+  String wsText   = (wsConnected ? "Connected" : "DISCONNECTED");
+  String battStr  = batteryText();
+
+  int x = 34, y = 74, lh = 22;
+
+  tft.setTextColor(C_TEXT, C_BG);
+  drawTextAuto("Device : " + fitTextPxAuto(deviceId(), 210, 2), x, y, 2, TL_DATUM); y += lh;
+  drawTextAuto("WiFi   : " + wifiText, x, y, 2, TL_DATUM); y += lh;
+  drawTextAuto("WS     : " + wsText, x, y, 2, TL_DATUM); y += lh;
+  drawTextAuto("Poll   : " + pollText, x, y, 2, TL_DATUM); y += lh;
+  drawTextAuto("Batt   : " + battStr, x, y, 2, TL_DATUM); y += lh;
+
+  tft.setTextColor(C_MUTED, C_BG);
+  drawTextAuto("SHOW   : " + fitTextPxAuto(SHOW_ID, 250, 1), x, y + 2, 1, TL_DATUM);
+
+  BTN_JOIN = { (int16_t)(tft.width()/2 - 90), (int16_t)(tft.height()-72), 180, 38 };
+  drawButton(BTN_JOIN, "เข้าร่วมโหวต", C_BTN, C_BTN_TEXT, 2);
+}
+
+void drawPoll(){
+  voteModalOpen = false;
+  voteConfirmMode = false;
+  pendingVoteChoiceIdx = -1;
+  rectReset(BTN_DONE);
+  rectReset(BTN_CONFIRM_YES);
+  rectReset(BTN_CONFIRM_BACK);
+
+  tft.fillScreen(C_BG);
+
+  drawBackIconButton({ 12, 12, 44, 34 });
+
+  tft.setTextColor(C_TEXT, C_BG);
+  drawTextAuto("Poll", tft.width()/2, 34, 4, MC_DATUM);
+
+  BTN_JOIN_POLL = { (int16_t)(tft.width()/2 - 86), (int16_t)(tft.height()-52), 172, 32 };
+  uint16_t joinFill = selectedPollIndex >= 0 ? C_BTN : tft.color565(210,210,210);
+  drawButton(BTN_JOIN_POLL, "เข้าร่วมโหวต", joinFill, C_BTN_TEXT, 2);
+
+  int listTop = 66;
+  int listBottom = BTN_JOIN_POLL.y - 12;
+  int cardX = 22;
+  int cardW = tft.width() - 48;
+  int cardH = POLL_CARD_H;
+  int gap = POLL_CARD_GAP;
+
+  int availH = listBottom - listTop;
+  int perPage = (availH + gap) / (cardH + gap);
+  if (perPage < 1) perPage = 1;
+
+  if (pollCount <= 0) {
+    tft.setTextColor(C_MUTED, C_BG);
+    drawTextAuto("ไม่พบ poll remote ของ show นี้", tft.width()/2, listTop + 40, 2, MC_DATUM);
+    drawTextAuto("เช็ก /api/rooms และ SHOW_ID", tft.width()/2, listTop + 66, 1, MC_DATUM);
+    drawVerticalScrollBar(tft.width()-16, listTop, listBottom-listTop, 1, 1, 0);
+    return;
+  }
+
+  if (pollScroll < 0) pollScroll = 0;
+  if (pollScroll > pollCount - 1) pollScroll = pollCount - 1;
+
+  int end = pollScroll + perPage;
+  if (end > pollCount) end = pollCount;
+
+  for (int i = pollScroll; i < end; i++) {
+    int idxOnScreen = i - pollScroll;
+    int cardY = listTop + idxOnScreen * (cardH + gap);
+
+    bool selected = (i == selectedPollIndex);
+    uint16_t fill = selected ? C_SELECTED_FILL : C_CARD;
+
+    tft.fillRoundRect(cardX + 2, cardY + 3, cardW, cardH, 8, selected ? C_SELECTED_GLOW : C_SHADOW);
+    tft.fillRoundRect(cardX, cardY, cardW, cardH, 8, fill);
+    tft.drawRoundRect(cardX, cardY, cardW, cardH, 8, selected ? C_SELECTED_BORDER : C_BORDER);
+
+    if (selected) {
+      tft.fillRoundRect(cardX + 6, cardY + 6, 6, cardH - 12, 3, C_SELECTED_BORDER);
+    }
+
+    drawMiniGridIcon(cardX + 16, cardY + 14, selected ? C_SELECTED_BORDER : C_MUTED);
+
+    tft.setTextColor(C_TEXT, fill);
+    String tt = fitTextPxAuto(polls[i].title, cardW - 160, 2);
+    drawTextAuto(tt, cardX + 42, cardY + 15, 2, TL_DATUM);
+
+    if (polls[i].description.length()) {
+      tft.setTextColor(C_MUTED, fill);
+      drawTextAuto(fitTextPxAuto(polls[i].description, cardW - 170, 1), cardX + 42, cardY + 28, 1, TL_DATUM);
+    }
+
+    String st = statusLabelThai(polls[i].status.length() ? polls[i].status : "pending");
+    uint16_t stFill = statusColor(st);
+    int bw = 62, bh = 18;
+    int bx = cardX + cardW - bw - 12;
+    int by = cardY + (cardH-bh)/2;
+
+    tft.fillRoundRect(bx, by, bw, bh, 5, stFill);
+    tft.setTextColor(TFT_BLACK, stFill);
+    drawTextAuto(st, bx + bw/2, by + bh/2, 1, MC_DATUM);
+  }
+
+  drawVerticalScrollBar(tft.width()-16, listTop, listBottom-listTop, pollCount, perPage, pollScroll);
+}
+
+void drawVote(){
+  voteModalOpen = false;
+  voteConfirmMode = false;
+  pendingVoteChoiceIdx = -1;
+  rectReset(BTN_DONE);
+  rectReset(BTN_CONFIRM_YES);
+  rectReset(BTN_CONFIRM_BACK);
+
+  tft.fillScreen(C_BG);
+
+  drawBackIconButton({ 12, 12, 44, 34 });
+
+  String topTitle = selectedPollTitle.length() ? selectedPollTitle : "title";
+  String desc = selectedPollDesc.length() ? selectedPollDesc : "description";
+
+  tft.setTextColor(C_TEXT, C_BG);
+  drawTextAuto(fitTextPxAuto(topTitle, tft.width()-96, 4), 70, 18, 4, TL_DATUM);
+
+  tft.setTextColor(C_MUTED, C_BG);
+  drawTextAuto(fitTextPxAuto(desc, tft.width()-96, 2), 70, 46, 2, TL_DATUM);
+
+  int total = choiceCount;
+
+  if (total <= 0) {
+    tft.setTextColor(C_MUTED, C_BG);
+    drawTextAuto("ไม่มีตัวเลือกของ poll นี้", tft.width()/2, 180, 2, MC_DATUM);
+    drawPageScrollBar(tft.width()-16, 92, tft.height()-112, 1, 0);
+    return;
+  }
+
+  if (voteScroll < 0) voteScroll = 0;
+  int maxStart = ((total - 1) / VOTE_PER_PAGE) * VOTE_PER_PAGE;
+  if (voteScroll > maxStart) voteScroll = maxStart;
+
+  int visible = total - voteScroll;
+  if (visible > VOTE_PER_PAGE) visible = VOTE_PER_PAGE;
+
+  for(int cell = 0; cell < visible; cell++){
+    int idx = voteScroll + cell;
+
+    UIRect card, imgBox, labelBox, vb;
+    getVoteCardRectByVisibleIndex(cell, visible, card, imgBox, labelBox, vb);
+
+    drawSoftCard(card.x, card.y, card.w, card.h, C_CARD, 10);
+
+    uint16_t imgBg = tft.color565(233, 233, 233);
+    tft.fillRoundRect(imgBox.x, imgBox.y, imgBox.w, imgBox.h, 4, imgBg);
+
+    if (choices[idx].imgReady && choices[idx].imgPath.length()) {
+      drawJpegFromFSInBox(choices[idx].imgPath, imgBox.x, imgBox.y, imgBox.w, imgBox.h);
+    } else {
+      tft.setTextColor(C_MUTED, imgBg);
+      drawTextAuto("image", imgBox.x + imgBox.w/2, imgBox.y + imgBox.h/2, 2, MC_DATUM);
+    }
+
+    tft.setTextColor(C_TEXT, C_CARD);
+    drawTextAuto(
+      fitTextPxAuto(choices[idx].label, labelBox.w - 6, 2),
+      labelBox.x + labelBox.w/2,
+      labelBox.y + labelBox.h/2,
+      2,
+      MC_DATUM
+    );
+
+    drawButton(vb, "โหวต", C_BLUE, TFT_WHITE, 2);
+  }
+
+  int totalPages = (total + VOTE_PER_PAGE - 1) / VOTE_PER_PAGE;
+  int currentPage = voteScroll / VOTE_PER_PAGE;
+  drawPageScrollBar(tft.width()-16, 92, tft.height()-116, totalPages, currentPage);
+}
+
+void goScreen(UiScreen s){
+  ui = s;
+  if(!screenOn) return;
+
+  switch(ui){
+    case SCR_SPLASH: drawSplash(); break;
+    case SCR_STATUS: drawStatus(); break;
+    case SCR_POLL:   drawPoll();   break;
+    case SCR_VOTE:   drawVote();   break;
+  }
+}
+
+void showVoteConfirmModal(int idx){
+  if (idx < 0 || idx >= choiceCount) return;
+
+  voteModalOpen = true;
+  voteConfirmMode = true;
+  pendingVoteChoiceIdx = idx;
+
+  rectReset(BTN_DONE);
+
+  int modalW = 210;
+  int modalH = 176;
+  int mx = (tft.width() - modalW) / 2;
+  int my = (tft.height() - modalH) / 2 - 6;
+
+  drawSoftCard(mx, my, modalW, modalH, C_MODAL, 12);
+
+  tft.setTextColor(C_TEXT, C_MODAL);
+  drawTextAuto("ยืนยันการโหวต", mx + modalW/2, my + 20, 4, MC_DATUM);
+
+  int imgW = 64, imgH = 64;
+  int imgX = mx + (modalW - imgW) / 2;
+  int imgY = my + 34;
+
+  tft.fillRoundRect(imgX, imgY, imgW, imgH, 8, tft.color565(216,216,216));
+
+  if (choices[idx].imgReady && choices[idx].imgPath.length()) {
+    drawJpegFromFSInBox(choices[idx].imgPath, imgX, imgY, imgW, imgH);
+  } else {
+    tft.setTextColor(C_MUTED, tft.color565(216,216,216));
+    drawTextAuto("img", imgX + imgW/2, imgY + imgH/2, 2, MC_DATUM);
+  }
+
+  tft.setTextColor(C_TEXT, C_MODAL);
+  drawTextAuto(
+    fitTextPxAuto(choices[idx].label, modalW - 24, 2),
+    mx + modalW/2,
+    my + 112,
+    2,
+    MC_DATUM
+  );
+
+  BTN_CONFIRM_BACK = { (int16_t)(mx + 18), (int16_t)(my + modalH - 34), 76, 26 };
+  BTN_CONFIRM_YES  = { (int16_t)(mx + modalW - 18 - 76), (int16_t)(my + modalH - 34), 76, 26 };
+
+  drawButton(BTN_CONFIRM_BACK, "ย้อนกลับ", tft.color565(230,230,230), TFT_BLACK, 2);
+  drawButton(BTN_CONFIRM_YES,  "ยืนยัน",   C_BTN, C_BTN_TEXT, 2);
+}
+
+void showVoteModal(){
+  voteModalOpen = true;
+  voteConfirmMode = false;
+  pendingVoteChoiceIdx = -1;
+  rectReset(BTN_CONFIRM_YES);
+  rectReset(BTN_CONFIRM_BACK);
+
+  int modalW = 170;
+  int modalH = 148;
+  int mx = (tft.width() - modalW) / 2;
+  int my = (tft.height() - modalH) / 2 - 6;
+
+  drawSoftCard(mx, my, modalW, modalH, C_MODAL, 12);
+
+  tft.setTextColor(C_TEXT, C_MODAL);
+  drawTextAuto("โหวตสำเร็จ", mx + modalW/2, my + 22, 4, MC_DATUM);
+
+  int imgW = 74, imgH = 74;
+  int imgX = mx + (modalW - imgW) / 2;
+  int imgY = my + 34;
+  tft.fillRoundRect(imgX, imgY, imgW, imgH, 10, tft.color565(216,216,216));
+
+  if (lastVotedChoiceIdx >= 0 && lastVotedChoiceIdx < choiceCount && choices[lastVotedChoiceIdx].imgReady) {
+    drawJpegFromFSInBox(choices[lastVotedChoiceIdx].imgPath, imgX, imgY, imgW, imgH);
+  } else {
+    tft.setTextColor(C_MUTED, tft.color565(216,216,216));
+    drawTextAuto("img", imgX + imgW/2, imgY + imgH/2, 2, MC_DATUM);
+  }
+
+  UIRect scorePill = { (int16_t)(mx + 28), (int16_t)(my + modalH - 28), (int16_t)(modalW - 56), 20 };
+  tft.fillRoundRect(scorePill.x, scorePill.y, scorePill.w, scorePill.h, 10, C_BLUE);
+  tft.setTextColor(TFT_WHITE, C_BLUE);
+  drawTextAuto("+ 1 โหวต", scorePill.x + scorePill.w/2, scorePill.y + scorePill.h/2, 2, MC_DATUM);
+
+  BTN_DONE = { (int16_t)(tft.width()-108), (int16_t)(tft.height()-44), 84, 28 };
+  drawButton(BTN_DONE, "เสร็จสิ้น", C_BTN, C_BTN_TEXT, 2);
+}
+
+// ================== vote ==================
+void sendVote(int idx){
+  if (!screenOn || idx < 0 || idx >= choiceCount) return;
+
+  if (WiFi.status()!=WL_CONNECTED){
+    toast("WiFi ยังไม่พร้อม");
+    return;
+  }
+
+  if (!selectedPollId.length()){
+    toast("ยังไม่ได้เลือก poll");
+    return;
+  }
+
+  if (!isVotingStatus(selectedPollStatus)){
+    toast("poll นี้ยังไม่เปิดโหวต");
+    return;
+  }
+
+  String url = String(SERVER_BASE_URL) + String(DEVICE_VOTE_HTTP_PATH);
+
+  StaticJsonDocument<256> doc;
+  doc["deviceId"]     = deviceId();
+  doc["showId"]       = SHOW_ID;
+  doc["roundId"]      = selectedPollId;
+  doc["contestantId"] = choices[idx].id;
+  doc["value"]        = 1;
+
+  String body;
+  serializeJson(doc, body);
+
+  int code = 0;
+  String resp;
+  if(!serverPostJson(url, body, resp, code, 8000)){
+    toast("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้");
+    return;
+  }
+
+  if (code == 200) {
+    lastVotedChoiceIdx = idx;
+    showVoteModal();
+  } else if (code == 409) {
+    toast("โหวตซ้ำไม่ได้");
+  } else if (code == 404) {
+    toast("ไม่พบรอบโหวตนี้");
+  } else {
+    toast("โหวตไม่สำเร็จ: " + String(code));
+  }
+}
+
+// ================== tap handler ==================
+void handleTap(uint16_t x, uint16_t y){
+  if(ui == SCR_STATUS){
+    if(hitPad(BTN_JOIN, x, y, 12)){
+      fetchActiveViaHttp();
+      refreshPollList();
+
+      if (pollCount <= 0) {
+        toast("ไม่พบ poll remote");
+      } else if (selectedPollIndex < 0) {
+        selectPollByIndex(0);
+      }
+
+      goScreen(SCR_POLL);
+      return;
+    }
+  }
+
+  if(ui == SCR_POLL){
+    if(hitPad(BTN_BACK, x, y, 12)){
+      goScreen(SCR_STATUS);
+      return;
+    }
+
+    int listTop = 66;
+    int listBottom = BTN_JOIN_POLL.y - 12;
+    int cardX = 22;
+    int cardW = tft.width() - 48;
+    int cardH = POLL_CARD_H;
+    int gap = POLL_CARD_GAP;
+    int availH = listBottom - listTop;
+    int perPage = (availH + gap) / (cardH + gap);
+    if (perPage < 1) perPage = 1;
+
+    int end = pollScroll + perPage;
+    if (end > pollCount) end = pollCount;
+
+    for (int i = pollScroll; i < end; i++) {
+      int idxOnScreen = i - pollScroll;
+      int cardY = listTop + idxOnScreen * (cardH + gap);
+      UIRect card = { (int16_t)cardX, (int16_t)cardY, (int16_t)cardW, (int16_t)cardH };
+
+      if (hitPad(card, x, y, 8)) {
+        selectPollByIndex(i);
+        drawPoll();
+        return;
+      }
+    }
+
+    if(hitPad(BTN_JOIN_POLL, x, y, 12)){
+      if(selectedPollIndex < 0 || !selectedPollId.length()){
+        toast("ยังไม่ได้เลือก poll");
+        return;
+      }
+
+      if(!isVotingStatus(selectedPollStatus)){
+        toast("poll นี้ยังไม่เปิดโหวต");
+        return;
+      }
+
+      if(choiceCount <= 0){
+        bool ok = fetchRoundDetailViaHttp(selectedPollId);
+        if(!ok){
+          toast("ดึงข้อมูลช้อยส์ไม่ได้");
+          return;
+        }
+      }
+
+      voteScroll = 0;
+      goScreen(SCR_VOTE);
+      return;
+    }
+  }
+
+  if(ui == SCR_VOTE){
+
+    // ===== จัดการ modal ก่อน =====
+    if (voteModalOpen) {
+      if (voteConfirmMode) {
+        if (hitPad(BTN_CONFIRM_BACK, x, y, 10)) {
+          voteModalOpen = false;
+          voteConfirmMode = false;
+          pendingVoteChoiceIdx = -1;
+          drawVote();
+          return;
+        }
+
+        if (hitPad(BTN_CONFIRM_YES, x, y, 10)) {
+          int idx = pendingVoteChoiceIdx;
+          voteModalOpen = false;
+          voteConfirmMode = false;
+          pendingVoteChoiceIdx = -1;
+          drawVote();
+          sendVote(idx);
+          return;
+        }
+
+        return;
+      } else {
+        if (hitPad(BTN_DONE, x, y, 10)) {
+          voteModalOpen = false;
+          goScreen(SCR_STATUS);
+          return;
+        }
+        return;
+      }
+    }
+
+    if(hitPad(BTN_BACK, x, y, 12)){
+      goScreen(SCR_POLL);
+      return;
+    }
+
+    int total = choiceCount;
+    if (total <= 0) {
+      toast("ไม่มีตัวเลือก");
+      return;
+    }
+
+    if (voteScroll < 0) voteScroll = 0;
+    int maxStart = ((total - 1) / VOTE_PER_PAGE) * VOTE_PER_PAGE;
+    if (voteScroll > maxStart) voteScroll = maxStart;
+
+    int visible = total - voteScroll;
+    if (visible > VOTE_PER_PAGE) visible = VOTE_PER_PAGE;
+
+    for(int cell=0; cell<visible; cell++){
+      int idx = voteScroll + cell;
+      UIRect card, imgBox, labelBox, vb;
+      getVoteCardRectByVisibleIndex(cell, visible, card, imgBox, labelBox, vb);
+
+      if(hitPad(vb, x, y, 12)){
+        showVoteConfirmModal(idx);
+        return;
+      }
+    }
+  }
+}
+
+// ================== touch ==================
+void handleTouch(){
+  uint16_t x, y;
+  bool down = readTouchOnce(x, y);
+  uint32_t now = millis();
+
+  if (down) {
+    lastTouchX = x;
+    lastTouchY = y;
+
+    if (!touchDown) {
+      if (now - lastTouchUpMs < TOUCH_DEBOUNCE_MS) return;
+
+      touchDown = true;
+      touchStartX = x;
+      touchStartY = y;
+      didDrag = false;
+      touchStartMs = now;
+      return;
+    }
+
+    int dy = (int)lastTouchY - (int)touchStartY;
+    int dx = (int)lastTouchX - (int)touchStartX;
+
+    if (!didDrag && (abs(dy) > TOUCH_DRAG_THRESHOLD || abs(dx) > TOUCH_DRAG_THRESHOLD)) {
+      didDrag = true;
+
+      if (ui == SCR_POLL && pollCount > 0) {
+        int listTop = 66;
+        int joinY = tft.height()-52;
+        int listBottom = joinY - 12;
+        int cardH = POLL_CARD_H, gap = POLL_CARD_GAP;
+        int availH = listBottom - listTop;
+        int perPage = (availH + gap) / (cardH + gap);
+        if (perPage < 1) perPage = 1;
+
+        if (dy < 0) {
+          if (pollScroll + perPage < pollCount) pollScroll++;
+        } else {
+          if (pollScroll > 0) pollScroll--;
+        }
+
+        drawPoll();
+        return;
+      }
+
+      int total = choiceCount;
+      if (ui == SCR_VOTE && total > VOTE_PER_PAGE) {
+        int maxStart = ((total - 1) / VOTE_PER_PAGE) * VOTE_PER_PAGE;
+
+        if (dy < 0 || dx < 0) {
+          voteScroll += VOTE_PER_PAGE;
+          if (voteScroll > maxStart) voteScroll = maxStart;
+        } else {
+          voteScroll -= VOTE_PER_PAGE;
+          if (voteScroll < 0) voteScroll = 0;
+        }
+
+        drawVote();
+        return;
+      }
+    }
+    return;
+  }
+
+  if (touchDown) {
+    touchDown = false;
+    lastTouchUpMs = now;
+
+    if (!didDrag) {
+      uint32_t heldMs = now - touchStartMs;
+      if (heldMs >= TOUCH_TAP_MIN_MS && heldMs <= TOUCH_TAP_MAX_MS) {
+        handleTap(lastTouchX, lastTouchY);
+      }
+    }
+
+    didDrag = false;
+  }
+}
+
+// ================== WS handler ==================
+void wsEvent(WStype_t type, uint8_t* payload, size_t length) {
+  if (!screenOn) return;
+
+  switch (type) {
+    case WStype_CONNECTED:
+      wsConnected = true;
+      requestActivePoll();
+      statusDirty = true;
+      updateStatusLed();
+      break;
+
+    case WStype_DISCONNECTED:
+      wsConnected = false;
+      statusDirty = true;
+      updateStatusLed();
+      break;
+
+    case WStype_TEXT: {
+      DynamicJsonDocument doc(49152);
+      DeserializationError err = deserializeJson(doc, payload, length);
+      if (err) {
+        toast("WS JSON error");
+        return;
+      }
+
+      String t = trimLower(String(doc["type"] | ""));
+      JsonVariantConst p;
+
+      if (doc["payload"].is<JsonObjectConst>() || doc["payload"].is<JsonArrayConst>()) p = doc["payload"].as<JsonVariantConst>();
+      else if (doc["data"].is<JsonObjectConst>() || doc["data"].is<JsonArrayConst>()) p = doc["data"].as<JsonVariantConst>();
+      else p = doc.as<JsonVariantConst>();
+
+      if (!wsPayloadMatchesShow(p)) {
+        return;
+      }
+
+      if (t == "active" || t == "poll_open") {
+        String rid = extractRoundIdFromVar(p);
+        activeRoundId = rid;
+
+        JsonVariantConst src = p;
+        if (src["poll"].is<JsonObjectConst>()) src = src["poll"];
+        if (src["round"].is<JsonObjectConst>()) src = src["round"];
+        activeRoundTitle = pickStr(src, "title", "round_name", "name");
+
+        if (ui == SCR_POLL && pollCount <= 0 && activeRoundId.length()) {
+          buildFallbackPollFromActive();
+          pollDirty = true;
+        }
+
+        if (selectedPollId.length() && rid.length() && rid == selectedPollId) {
+          if (ui != SCR_VOTE) {
+            fetchRoundDetailViaHttp(selectedPollId);
+            voteDirty = true;
+          }
+        }
+
+        statusDirty = true;
+      }
+
+      if (t == "poll_close") {
+        String rid = extractRoundIdFromVar(p);
+        if (!rid.length() || rid == activeRoundId) {
+          activeRoundId = "";
+          activeRoundTitle = "";
+        }
+
+        if (selectedPollId.length() && rid == selectedPollId) {
+          selectedPollStatus = "closed";
+          pollOpen = false;
+          voteDirty = true;
+        }
+
+        statusDirty = true;
+      }
+      break;
+    }
+
+    default: break;
+  }
+}
+
+// ================== setup / loop ==================
+void setup() {
+#if SERIAL_DEBUG
+  Serial.begin(115200);
+  delay(200);
+#else
+  delay(50);
+#endif
+
+  initRgbLed();
+  setRgbBoot();
+  initBatteryAdc();
+  updateBatteryStatus(true);
+
+#if USE_PWR_BUTTON
+  pinMode(PIN_PWR_BTN, INPUT_PULLUP);
+#endif
+
+#if USE_TFT_BL_PIN
+  pinMode(PIN_TFT_BL, OUTPUT);
+#endif
+
+  pinMode(PIN_TOUCH_IRQ, INPUT);
+
+  tft.init();
+  tft.setRotation(TFT_ROTATION);
+  tft.setSwapBytes(true);
+
+  uiInitTheme();
+  setBacklightHW(true);
+  delay(30);
+
+  littlefsReady = LittleFS.begin(true);
+  if (littlefsReady && LittleFS.exists(THAI_FONT_FILE)) {
+    tft.loadFont(THAI_FONT_NAME, LittleFS);
+    thaiFontReady = true;
+    DBG("[ThaiFont] LOADED");
+  } else {
+    thaiFontReady = false;
+    DBG("[ThaiFont] NOT FOUND");
+  }
+
+  uint16_t cal[5] = { 0, 0, 0, 0, 0 };
+
+#if FORCE_TOUCH_RECALIBRATE
+  clearTouchCal();
+#endif
+
+  bool hasTouchCal = loadTouchCal(cal, TFT_ROTATION);
+
+  if (!hasTouchCal) {
+    tft.fillScreen(TFT_BLACK);
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    tft.setTextDatum(MC_DATUM);
+    tft.drawString("Touch corners to calibrate", tft.width()/2, tft.height()/2 - 18, 2);
+    tft.drawString("Tap all 4 corners", tft.width()/2, tft.height()/2 + 6, 2);
+    tft.drawString("one by one", tft.width()/2, tft.height()/2 + 26, 2);
+    tft.setTextDatum(TL_DATUM);
+    delay(1200);
+    setRgbBoot();
+
+    tft.calibrateTouch(cal, TFT_MAGENTA, TFT_BLACK, 15);
+    saveTouchCal(cal, TFT_ROTATION);
+
+    tft.fillScreen(TFT_BLACK);
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    tft.setTextDatum(MC_DATUM);
+    tft.drawString("Touch saved", tft.width()/2, tft.height()/2, 2);
+    tft.setTextDatum(TL_DATUM);
+    delay(700);
+    setRgbBoot();
+  }
+
+  tft.setTouch(cal);
+
+  resolveShowId();
+
+  if (!SHOW_ID.length() || isPlaceholderShowId(SHOW_ID)) {
+    DBG("SHOW_ID ยังไม่ถูกต้อง");
+  } else {
+    prefs.begin("vote_next", false);
+    prefs.putString("showId", SHOW_ID);
+    prefs.end();
+  }
+
+  goScreen(SCR_SPLASH);
+  setRgbBoot();
+
+  uint32_t bootLedStart = millis();
+  while (millis() - bootLedStart < BOOT_COLOR_HOLD_MS) {
+    setRgbBoot();
+    delay(20);
+  }
+
+  startWiFi();
+
+  uint32_t start = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - start < 12000) {
+    delay(50);
+    updateStatusLed();
+  }
+
+  updateBatteryStatus(true);
+
+  if (WiFi.status() == WL_CONNECTED) {
+    fetchActiveViaHttp();
+    refreshPollList();
+
+    if (pollCount > 0 && selectedPollIndex < 0) {
+      selectPollByIndex(0);
+    } else if (selectedPollId.length()) {
+      fetchRoundDetailViaHttp(selectedPollId);
+    }
+  }
+
+  reconnectWs();
+  statusDirty = true;
+  goScreen(SCR_STATUS);
+
+  systemBooting = false;
+  updateStatusLed();
+}
+
+void loop() {
+  maintainWiFi();
+  updateBatteryStatus(false);
+
+  if (screenOn) {
+    ws.loop();
+    handleTouch();
+    preloadChoiceImagesTick();
+
+    if (statusDirty && ui == SCR_STATUS && millis() > toastHoldUntil) {
+      statusDirty = false;
+      drawStatus();
+    }
+
+    if (pollDirty && ui == SCR_POLL && millis() > toastHoldUntil) {
+      pollDirty = false;
+      drawPoll();
+    }
+
+    if (voteDirty && ui == SCR_VOTE && !voteModalOpen && millis() > toastHoldUntil) {
+      voteDirty = false;
+      drawVote();
+    }
+
+    if (WiFi.status() == WL_CONNECTED && millis() - lastRefreshMs > REFRESH_MS) {
+      lastRefreshMs = millis();
+
+      if (ui == SCR_STATUS || ui == SCR_POLL) {
+        fetchActiveViaHttp();
+      }
+
+      if (ui == SCR_POLL || ui == SCR_STATUS) {
+        refreshPollList();
+      }
+
+      if (ui == SCR_POLL) {
+        pollDirty = true;
+      }
+
+      if (ui == SCR_STATUS) {
+        statusDirty = true;
+      }
+
+      if (ui != SCR_VOTE && wsConnected) {
+        requestActivePoll();
+      }
+    }
+  }
+
+  updateStatusLed();
+
+#if USE_PWR_BUTTON
+  static int lastBtn = HIGH;
+  static uint32_t pressStartMs = 0;
+  int now = digitalRead(PIN_PWR_BTN);
+
+  if (lastBtn == HIGH && now == LOW) {
+    pressStartMs = millis();
+  }
+
+  if (lastBtn == LOW && now == HIGH) {
+    if (millis() - pressStartMs >= 800) {
+      setScreenPower(!screenOn);
+    }
+  }
+
+  lastBtn = now;
+#endif
+}
