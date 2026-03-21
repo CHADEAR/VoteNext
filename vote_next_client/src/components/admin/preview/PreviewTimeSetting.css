@@ -147,7 +147,6 @@
   display: flex;
   flex-direction: row;
   align-items: center;
-  margin-top: 5%;
 }
 .manual-time-settings{
   margin-top: 2rem !important;
