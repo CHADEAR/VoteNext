@@ -11,6 +11,7 @@
   width: min(1100px, 90%);
   margin: 0 auto;
   min-height: calc(100vh - 92px);
+  background: var(--app-page-bg, #faf8f3);
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -22,7 +23,7 @@
 }
 
 .preview-card {
-  background: #ffffff;
+  background: #f6f6f6;
   border-radius: 12px;
   padding: 16px;
   margin-bottom: 20px;
@@ -41,7 +42,7 @@
 }
 
 .preview-contestant-card {
-  background: #eaeaea;
+  background: hsl(44deg 52.1% 89.13%);
   border-radius: 10px;
   padding: 10px;
   text-align: center;

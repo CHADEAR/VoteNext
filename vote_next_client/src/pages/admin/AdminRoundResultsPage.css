@@ -2,7 +2,7 @@
 
 .round-results-page {
   min-height: 100vh;
-  --rr-bg: hsl(38 100% 97%);
+  --rr-bg: var(--app-page-bg, #faf8f3);
   --rr-surface: hsl(42 100% 99%);
   --rr-surface-soft: hsl(38 100% 95%);
   --rr-surface-accent: hsl(38 100% 90%);

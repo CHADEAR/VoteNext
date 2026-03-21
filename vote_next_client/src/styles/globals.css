@@ -1,1 +1,16 @@
-/* Global stylesheet placeholder */
+:root {
+  --app-page-bg: #faf8f3;
+  --app-text: hsl(24 45% 20%);
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--app-page-bg);
+  color: var(--app-text);
+}

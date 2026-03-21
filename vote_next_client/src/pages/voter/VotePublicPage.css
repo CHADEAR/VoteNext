@@ -1,7 +1,7 @@
 /* ===== Base ===== */
 .vote-page {
   min-height: 100vh;
-  background: #f1f3f5;
+  background: var(--app-page-bg, #faf8f3);
   color: #0f172a;
   padding: clamp(16px, 2.5vw, 28px);
   font-family: "Inter", system-ui, sans-serif;
