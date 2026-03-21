@@ -21,19 +21,19 @@ export default function ConfirmVoteModal({
           />
         </div>
 
-        <h3>โหวต</h3>
+        <h3>Confirm Vote</h3>
         <div className="modal__desc">{contestant.stage_name}</div>
 
         <div className="modal__actions">
           <button className="btn-secondary" onClick={onClose}>
-            ยกเลิก
+            Cancel
           </button>
           <button
             className="btn-primary"
             onClick={onConfirm}
             disabled={loading}
           >
-            {loading ? "กำลังโหวต..." : "โหวตตอนนี้"}
+            {loading ? "Submitting vote..." : "Vote Now"}
           </button>
         </div>
       </div>

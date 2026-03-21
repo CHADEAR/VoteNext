@@ -1,4 +1,3 @@
-// vote_next_server/src/modules/rooms/rooms.controller.js
 const { pool } = require("../../config/db");
 const roomService = require("./rooms.service");
 const { applyContestantPatch, updatePollMeta } = require("./rooms.service");
@@ -18,7 +17,7 @@ exports.createRoom = async (req, res) => {
     if (!title) {
       return res.status(400).json({
         success: false,
-        message: "title จำเป็นต้องกรอก",
+        message: "Title is required",
       });
     }
 
@@ -59,15 +58,13 @@ exports.createRoom = async (req, res) => {
     console.error("Error creating room:", error);
     return res.status(500).json({
       success: false,
-      message: error.message || "เกิดข้อผิดพลาดในการสร้างโพล",
+      message: error.message || "Failed to create poll",
     });
   }
 };
 
-// GET /api/rooms
 exports.getRooms = async (_req, res) => {
   try {
-    // ✅ ชั่วคราว: ไม่กรอง showId เพื่อให้ ESP32 ดึง list ได้เหมือนเดิม
     const rooms = await roomService.getRoomsWithContestants();
 
     return res.json({
@@ -78,12 +75,11 @@ exports.getRooms = async (_req, res) => {
     console.error("Error fetching rooms:", error);
     return res.status(500).json({
       success: false,
-      message: error.message || "เกิดข้อผิดพลาดในการดึงข้อมูลโพล",
+      message: error.message || "Failed to load poll data",
     });
   }
 };
 
-// PATCH /api/rooms/:id
 exports.patchRoom = async (req, res) => {
   const { id: roundId } = req.params;
   const client = await pool.connect();
@@ -115,14 +111,14 @@ exports.patchRoom = async (req, res) => {
 
     return res.json({
       success: true,
-      message: "PATCH update successful",
+      message: "Poll updated successfully",
     });
   } catch (error) {
     await client.query("ROLLBACK");
     console.error("PATCH updateRoom error:", error);
     return res.status(500).json({
       success: false,
-      message: error.message || "Failed to patch room",
+      message: error.message || "Failed to update poll",
     });
   } finally {
     client.release();
@@ -137,13 +133,13 @@ exports.deleteRoom = async (req, res) => {
 
     return res.json({
       success: true,
-      message: "Deleted room successfully",
+      message: "Poll deleted successfully",
     });
   } catch (error) {
     console.error("Error deleting room:", error);
     return res.status(500).json({
       success: false,
-      message: error.message || "Failed to delete room",
+      message: error.message || "Failed to delete poll",
     });
   }
 };

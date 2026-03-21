@@ -1,0 +1,77 @@
+.admin-page-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  margin-top: auto;
+  padding-top: 14px;
+}
+
+.admin-page-action-btn {
+  min-width: 100px;
+  height: 38px;
+  padding: 0 20px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease,
+    box-shadow 0.18s ease, opacity 0.18s ease;
+  box-shadow: 0 10px 24px rgba(42, 34, 26, 0.08);
+}
+
+.admin-page-action-btn:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.admin-page-action-btn--back {
+  background: #ece8e3;
+  border-color: #ddd6cf;
+  color: #4a4037;
+}
+
+.admin-page-action-btn--back:hover:not(:disabled) {
+  background: #e3ddd6;
+}
+
+.admin-page-action-btn--warning {
+  background: #ffe7a3;
+  border-color: #f3d77f;
+  color: #4d3d11;
+}
+
+.admin-page-action-btn--warning:hover:not(:disabled) {
+  background: #ffdf8a;
+}
+
+.admin-page-action-btn--primary {
+  background: #1f56c5;
+  border-color: #1b4aab;
+  color: #fff;
+}
+
+.admin-page-action-btn--primary:hover:not(:disabled) {
+  background: #1849ab;
+}
+
+@media (max-width: 640px) {
+  .admin-page-actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .admin-page-action-btn {
+    width: 100%;
+    min-width: 0;
+  }
+}

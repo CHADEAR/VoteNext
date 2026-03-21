@@ -15,6 +15,14 @@ const MODE_LABEL = {
   remote: "Remote",
 };
 
+const STATUS_LABEL = {
+  all: "All",
+  pending: "Pending",
+  voting: "Voting",
+  closed: "Closed",
+  end: "Closed",
+};
+
 const renderVoteModeIcon = (voteMode) => {
   if (voteMode === "online") {
     return <FiWifi aria-label="Online mode" title="Online mode" />;
@@ -50,11 +58,11 @@ export default function AdminDashboardPage() {
   const fetchRooms = async () => {
     try {
       setLoading(true);
-      const data = await getRooms(); // backend คืน array
+      const data = await getRooms();
       setRooms(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error(err);
-      setError("ไม่สามารถดึงรายการโพลได้");
+      setError("Unable to load poll list");
     } finally {
       setLoading(false);
     }
@@ -67,10 +75,8 @@ export default function AdminDashboardPage() {
   const filteredRooms = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     return rooms.filter((room) => {
-      const matchMode =
-        modeFilter === "all" || room.vote_mode === modeFilter;
-      const matchStatus =
-        statusFilter === "all" || room.status === statusFilter;
+      const matchMode = modeFilter === "all" || room.vote_mode === modeFilter;
+      const matchStatus = statusFilter === "all" || room.status === statusFilter;
       const titleText = String(room.title || "").toLowerCase();
       const matchSearch = !query || titleText.startsWith(query);
       return matchMode && matchStatus && matchSearch;
@@ -92,7 +98,6 @@ export default function AdminDashboardPage() {
   };
 
   const handleView = (room) => {
-    // shape ให้ตรงกับ Preview
     const previewData = {
       success: true,
       data: {
@@ -124,17 +129,16 @@ export default function AdminDashboardPage() {
     navigate("/admin/create-poll", { state: { room } });
   };
 
-  // ✅ hard delete + refresh จาก backend
   const handleDelete = async (room) => {
-    const ok = window.confirm(`ลบโพล "${room.title}" หรือไม่?`);
+    const ok = window.confirm(`Delete poll "${room.title}"?`);
     if (!ok) return;
 
     try {
-      await deleteRoom(room.round_id); // 🔥 ลบจริง
-      await fetchRooms();              // 🔁 reload จาก DB
+      await deleteRoom(room.round_id);
+      await fetchRooms();
     } catch (err) {
       console.error(err);
-      alert("ลบไม่สำเร็จ");
+      alert("Failed to delete poll");
     }
   };
 
@@ -144,7 +148,7 @@ export default function AdminDashboardPage() {
   };
 
   if (loading) {
-    return <div className="admin-dashboard__empty">กำลังโหลด...</div>;
+    return <div className="admin-dashboard__empty">Loading...</div>;
   }
 
   return (
@@ -152,20 +156,19 @@ export default function AdminDashboardPage() {
       <Navbar showProfile onLogout={handleLogout} />
 
       <main className="dashboard-content">
-        <h1 className="page-title">Vote Poll</h1>
+        <h1 className="page-title">Vote Polls</h1>
 
-        {/* Controls */}
         <div className="controls">
           <div className="search-box">
             <input
-              placeholder="search box"
+              placeholder="Search polls"
               value={searchInput}
               onChange={(event) => setSearchInput(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === "Enter") applySearch();
               }}
             />
-             <button
+            <button
               type="button"
               className="search-icon-btn"
               onClick={applySearch}
@@ -180,8 +183,8 @@ export default function AdminDashboardPage() {
               className="dropdown-btn"
               onClick={() => setOpenStatus(!openStatus)}
             >
-              {statusFilter}
-              <span>⌄</span>
+              {STATUS_LABEL[statusFilter] || statusFilter}
+              <span>v</span>
             </button>
 
             {openStatus && (
@@ -197,7 +200,7 @@ export default function AdminDashboardPage() {
                       setOpenStatus(false);
                     }}
                   >
-                    {item}
+                    {STATUS_LABEL[item] || item}
                   </div>
                 ))}
               </div>
@@ -210,7 +213,7 @@ export default function AdminDashboardPage() {
               onClick={() => setOpenMode(!openMode)}
             >
               {MODE_LABEL[modeFilter]}
-              <span>⌄</span>
+              <span>v</span>
             </button>
 
             {openMode && (
@@ -237,14 +240,14 @@ export default function AdminDashboardPage() {
             className="create-btn"
             onClick={() => navigate("/admin/create-poll")}
           >
-            Create Poll ↗
+            Create Poll
           </button>
         </div>
 
         {error && <div className="error">{error}</div>}
 
         {filteredRooms.length === 0 ? (
-          <div className="admin-dashboard__empty">ยังไม่มีโพล</div>
+          <div className="admin-dashboard__empty">No polls found</div>
         ) : (
           <div className="poll-list">
             {filteredRooms.map((room) => (
@@ -259,15 +262,14 @@ export default function AdminDashboardPage() {
                       {room.title || "Untitled poll"}
                     </div>
                     <div className="poll-date">
-                      created at{" "}
-                      {new Date(room.created_at).toLocaleDateString()}
+                      Created at {new Date(room.created_at).toLocaleDateString()}
                     </div>
                   </div>
                 </div>
 
                 <div className="poll-actions">
                   <span className={`status ${room.status}`}>
-                    {room.status}
+                    {STATUS_LABEL[room.status] || room.status}
                   </span>
 
                   <button
@@ -308,11 +310,7 @@ export default function AdminDashboardPage() {
           </div>
         )}
 
-        {shareLink && (
-          <div className="share-hint">
-            ลิงก์ถูกคัดลอกแล้ว: {shareLink}
-          </div>
-        )}
+        {shareLink && <div className="share-hint">Link copied: {shareLink}</div>}
       </main>
     </div>
   );

@@ -17,12 +17,14 @@ export default function AdminPreviewVotePollPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const room = location.state?.room;
-  const roundId =
-    params.id ||
-    params.roundId ||
-    room?.data?.round?.id ||
-    room?.data?.round?.round_id ||
-    "";
+  const roundId = String(
+    params.pollId ||
+      params.id ||
+      params.roundId ||
+      room?.data?.round?.id ||
+      room?.data?.round?.round_id ||
+      ""
+  );
 
   // Safety guard
   if (!room || !room.data || !room.data.show || !room.data.round) {
@@ -42,7 +44,7 @@ export default function AdminPreviewVotePollPage() {
       const rows = res?.data?.data || res?.data || [];
 
       const found = (Array.isArray(rows) ? rows : []).find(
-        (item) => (item.round_id || item.id || item.roundId) === roundId
+        (item) => String(item.round_id || item.id || item.roundId || "") === roundId
       );
 
       if (!found) {
@@ -211,22 +213,27 @@ export default function AdminPreviewVotePollPage() {
           startTime={toTime(round.start_time)}
           endTime={toTime(round.end_time)}
           status={round.status}
-          roundId={round.id || round.round_id || roundId}
+          roundId={String(round.id || round.round_id || roundId || "")}
           onRefresh={fetchRound}
           manualStartTime={round.start_time}
         />
       </div>
 
-      <div className="preview-actions">
-        <button className="btn-secondary" onClick={() => navigate(-1)}>
-          Previous
+      <div className="preview-actions admin-page-actions">
+        <button
+          className="btn-secondary admin-page-action-btn admin-page-action-btn--back"
+          onClick={() => navigate(-1)}
+        >
+          Back
         </button>
 
         <button
-          className="btn-primary"
-          onClick={() => navigate(`/admin/rounds/${round.id || round.round_id || roundId}`)}
+          className="btn-primary admin-page-action-btn admin-page-action-btn--primary"
+          onClick={() =>
+            navigate(`/admin/rounds/${String(round.id || round.round_id || roundId || "")}`)
+          }
         >
-          view result
+          View Results
         </button>
       </div>
     </div>

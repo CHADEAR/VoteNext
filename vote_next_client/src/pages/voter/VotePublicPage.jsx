@@ -23,7 +23,7 @@ function Countdown({ start, now, onFinish }) {
 
   return (
     <div className="vote-status warning">
-      เริ่มใน {h}h {m}m {s}s
+      Starts in {h}h {m}m {s}s
     </div>
   );
 }
@@ -79,7 +79,7 @@ export default function VotePublicPage() {
         setPoll(normalizePoll(data));
       } catch (err) {
         console.error(err);
-        setError("ไม่สามารถโหลดข้อมูลโพลได้");
+        setError("Unable to load poll data");
       } finally {
         setLoading(false);
       }
@@ -193,7 +193,7 @@ export default function VotePublicPage() {
       sessionStorage.removeItem(VOTE_TOKEN_KEY(publicSlug));
     } catch (err) {
       console.error(err);
-      setError(err?.response?.data?.message || "โหวตไม่สำเร็จ กรุณาลองใหม่");
+      setError(err?.response?.data?.message || "Vote submission failed. Please try again.");
     } finally {
       setVoting(false);
     }
@@ -215,8 +215,8 @@ export default function VotePublicPage() {
   return (
     <div className="vote-page">
 
-      {checkingVote && <div className="vote-status">กำลังตรวจสอบสถานะการโหวต...</div>}
-      {loading && !checkingVote && <div className="vote-status">กำลังโหลด...</div>}
+      {checkingVote && <div className="vote-status">Checking vote status...</div>}
+      {loading && !checkingVote && <div className="vote-status">Loading...</div>}
       {error && <div className="vote-status error">{error}</div>}
 
       {/* MAIN */}
@@ -256,7 +256,7 @@ export default function VotePublicPage() {
             ))}
 
             {contestants.length === 0 && (
-              <div className="vote-status">ยังไม่มีผู้เข้าแข่งขัน</div>
+              <div className="vote-status">No contestants available yet</div>
             )}
           </section>
         </>

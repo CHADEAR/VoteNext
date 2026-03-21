@@ -122,7 +122,7 @@ exports.getRound = async (req, res) => {
     const data = await getRound(roundId);
     res.json({ success: true, data });
   } catch (err) {
-    console.error("getRound error:", err);
+    console.error("getRound error:", { roundId: req.params.roundId, message: err.message });
     if (err.message === "Round not found") {
       return res.status(404).json({ success: false, message: err.message });
     }

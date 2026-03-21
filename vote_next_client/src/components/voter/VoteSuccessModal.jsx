@@ -6,16 +6,16 @@ export default function VoteSuccessModal({ open, onClose, onViewResult }) {
   return (
     <div className="modal-overlay">
       <div className="modal">
-        <h3>โหวตสำเร็จ</h3>
-        <div className="modal__desc">+ 1 โหวต</div>
+        <h3>Vote Submitted</h3>
+        <div className="modal__desc">+ 1 vote</div>
 
         <div className="modal__actions">
           <button className="btn-primary" onClick={onViewResult}>
-            ดูผลโหวตทั้งหมด
+            View Results
           </button>
 
           <button className="btn-secondary" onClick={onClose}>
-            ปิด
+            Close
           </button>
         </div>
       </div>

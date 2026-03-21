@@ -205,13 +205,13 @@ const CreateVotePoll = () => {
     e.preventDefault();
 
     if (!formData.title.trim()) {
-      toast.error("กรุณาใส่ชื่อโพล");
+      toast.error("Please enter a poll title");
       return;
     }
 
     const valid = formData.choices.filter((c) => c.label.trim() !== "");
     if (valid.length < 2) {
-      toast.error("กรุณาเพิ่มตัวเลือกอย่างน้อย 2 ตัวเลือก");
+      toast.error("Please add at least 2 choices");
       return;
     }
 
@@ -281,7 +281,7 @@ const CreateVotePoll = () => {
         }
         
         const r = await createVotePoll(submit);
-        toast.success("สร้างโพลสำเร็จ!");
+        toast.success("Poll created successfully!");
 
         navigate(`/admin/preview/${r.data.round.id}`, {
           state: { room: { data: r.data } },
@@ -481,26 +481,26 @@ const CreateVotePoll = () => {
             </button>
           </div>
 
-          <div className="form-actions">
+          <div className="form-actions admin-page-actions">
             <button
               type="button"
-              className="btn btn-secondary"
+              className="btn btn-secondary admin-page-action-btn admin-page-action-btn--back"
               onClick={() => navigate(-1)}
             >
-              previous
+              Back
             </button>
 
             {/* Submit จริง */}
             <button
               type="submit"
-              className={`create-btn ${editingId ? 'save-btn' : ''}`}
+              className={`create-btn admin-page-action-btn admin-page-action-btn--warning ${editingId ? 'save-btn' : ''}`}
               disabled={isSubmitting}
             >
               {isSubmitting
                 ? 'Saving...'
                 : editingId
-                  ? 'Saved changes'
-                  : 'Created poll'}
+                  ? 'Save Changes'
+                  : 'Create Poll'}
             </button>
           </div>
 

@@ -32,7 +32,7 @@ export default function AdminLoginPage() {
     setInfo("");
 
     if (!email || !password) {
-      setError("กรุณากรอก Email และ Password");
+      setError("Please enter your email and password");
       return;
     }
 
@@ -43,12 +43,12 @@ export default function AdminLoginPage() {
       localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify(admin));
       localStorage.setItem('adminToken', token);
 
-      setInfo("Login สำเร็จ กำลังเปลี่ยนหน้า...");
+      setInfo("Login successful. Redirecting...");
       navigate(from, { replace: true });
     } catch (err) {
       console.error(err);
       const msg =
-        err?.response?.data?.message || "Login ไม่สำเร็จ กรุณาลองอีกครั้ง";
+        err?.response?.data?.message || "Login failed. Please try again.";
       setError(msg);
     } finally {
       setLoading(false);
@@ -61,24 +61,24 @@ export default function AdminLoginPage() {
     setResetSuccess("");
 
     if (!resetEmail || !newPassword || !resetConfirmPassword) {
-      setResetError("กรุณากรอก Email, รหัสผ่านใหม่ และยืนยันรหัสผ่าน");
+      setResetError("Please enter your email, new password, and password confirmation");
       return;
     }
 
     if (newPassword !== resetConfirmPassword) {
-      setResetError("รหัสผ่านใหม่และยืนยันรหัสผ่านไม่ตรงกัน");
+      setResetError("New password and confirmation do not match");
       return;
     }
 
     if (newPassword.length < 6) {
-      setResetError("รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร");
+      setResetError("Password must be at least 6 characters");
       return;
     }
 
     try {
       setResetLoading(true);
       await resetPassword(resetEmail, newPassword);
-      setResetSuccess("รหัสผ่านได้รับการอัพเดตเรียบร้อยแล้ว");
+      setResetSuccess("Password updated successfully");
       setTimeout(() => {
         setShowReset(false);
         setResetEmail("");
@@ -88,7 +88,7 @@ export default function AdminLoginPage() {
     } catch (err) {
       console.error(err);
       const msg =
-        err?.response?.data?.message || "อัพเดตรหัสผ่านไม่สำเร็จ";
+        err?.response?.data?.message || "Failed to update password";
       setResetError(msg);
     } finally {
       setResetLoading(false);
@@ -144,7 +144,7 @@ export default function AdminLoginPage() {
               {info && <div className="info-message">{info}</div>}
 
               <button type="submit" className="login-button" disabled={loading}>
-                {loading ? "กำลังเข้าสู่ระบบ..." : "Login"}
+                {loading ? "Signing in..." : "Login"}
               </button>
             </form>
           </>
@@ -159,7 +159,7 @@ export default function AdminLoginPage() {
                   <span className="input-icon"><MdEmail size={18} /></span>
                   <input
                     type="email"
-                    placeholder="กรอกอีเมลของคุณ"
+                    placeholder="Enter your email"
                     value={resetEmail}
                     onChange={(e) => setResetEmail(e.target.value)}
                     className="input-field"
@@ -168,12 +168,12 @@ export default function AdminLoginPage() {
               </div>
 
               <div className="form-group">
-                <label className="input-label">รหัสผ่านใหม่</label>
+                <label className="input-label">New Password</label>
                 <div className="input-wrapper">
                   <span className="input-icon"><MdLock size={18} /></span>
                   <input
                     type="password"
-                    placeholder="กรอกรหัสผ่านใหม่ (อย่างน้อย 6 ตัวอักษร)"
+                    placeholder="Enter a new password (at least 6 characters)"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     className="input-field"
@@ -182,12 +182,12 @@ export default function AdminLoginPage() {
               </div>
 
               <div className="form-group">
-                <label className="input-label">ยืนยันรหัสผ่านใหม่</label>
+                <label className="input-label">Confirm New Password</label>
                 <div className="input-wrapper">
                   <span className="input-icon"><MdLock size={18} /></span>
                   <input
                     type="password"
-                    placeholder="กรอกรหัสผ่านใหม่อีกครั้ง"
+                    placeholder="Enter your new password again"
                     value={resetConfirmPassword}
                     onChange={(e) => setResetConfirmPassword(e.target.value)}
                     className="input-field"
@@ -211,10 +211,10 @@ export default function AdminLoginPage() {
                     setResetSuccess("");
                   }}
                 >
-                  กลับไป Login
+                  Back to Login
                 </button>
                 <button type="submit" className="reset-button" disabled={resetLoading}>
-                  {resetLoading ? "กำลังอัพเดต..." : "อัพเดตรหัสผ่าน"}
+                  {resetLoading ? "Updating..." : "Update Password"}
                 </button>
               </div>
             </form>

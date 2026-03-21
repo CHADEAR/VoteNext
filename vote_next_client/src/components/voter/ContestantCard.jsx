@@ -24,7 +24,7 @@ export default function ContestantCard({ contestant, onVote, disabled }) {
           disabled={disabled}
           onClick={() => onVote(contestant)}
         >
-          โหวต
+          Vote
         </button>
       </div>
     </div>

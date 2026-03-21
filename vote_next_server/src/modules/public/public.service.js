@@ -1,9 +1,5 @@
-// src/modules/public/public.service.js
 const { pool } = require("../../config/db");
 
-/**
- * Get round id + show_id by public slug (for verify-email and vote token)
- */
 exports.getRoundAndShowBySlug = async (publicSlug) => {
   const r = await pool.query(
     `SELECT id AS round_id, show_id FROM rounds WHERE public_slug = $1`,
@@ -13,31 +9,27 @@ exports.getRoundAndShowBySlug = async (publicSlug) => {
   return r.rows[0];
 };
 
-/**
- * Verify email for voting: format, MX, Hunter, และยังไม่เคยโหวตใน round นี้
- * Returns { roundId, showId, email } for JWT payload on success.
- */
 exports.verifyEmailForVote = async (publicSlug, email, hunterApiKey) => {
   const emailVerification = require("./emailVerification.service");
   const trimmed = email.trim().toLowerCase();
 
   if (!emailVerification.checkFormat(trimmed)) {
-    throw new Error("รูปแบบอีเมลไม่ถูกต้อง");
+    throw new Error("Invalid email format");
   }
 
   const roundAndShow = await exports.getRoundAndShowBySlug(publicSlug);
   if (!roundAndShow) {
-    throw new Error("ไม่พบโพลนี้");
+    throw new Error("Poll not found");
   }
 
   const hasVoted = await exports.hasVotedInRound(roundAndShow.round_id, trimmed);
   if (hasVoted) {
-    throw new Error("อีเมลนี้เคยโหวตในรอบนี้แล้ว");
+    throw new Error("This email has already voted in this round");
   }
 
   const mxOk = await emailVerification.checkMx(trimmed);
   if (!mxOk) {
-    throw new Error("ไม่พบ MX record ของโดเมนอีเมล");
+    throw new Error("No MX record found for this email domain");
   }
 
   await emailVerification.checkHunter(trimmed, hunterApiKey);
@@ -49,9 +41,6 @@ exports.verifyEmailForVote = async (publicSlug, email, hunterApiKey) => {
   };
 };
 
-/**
- * เช็คว่า email นี้เคยโหวตใน round นี้หรือยัง (ตาราง votes)
- */
 exports.hasVotedInRound = async (roundId, email) => {
   const r = await pool.query(
     `SELECT 1 FROM votes WHERE round_id = $1 AND email = $2 LIMIT 1`,
@@ -60,9 +49,6 @@ exports.hasVotedInRound = async (roundId, email) => {
   return r.rowCount > 0;
 };
 
-/**
- * Submit online vote (email from JWT voteToken; also insert into votes for round-level uniqueness)
- */
 exports.submitOnlineVote = async ({ roundId, contestantId, email }) => {
   if (!roundId || !contestantId || !email) {
     throw new Error("roundId, contestantId and email are required");
@@ -72,7 +58,6 @@ exports.submitOnlineVote = async ({ roundId, contestantId, email }) => {
   try {
     await client.query("BEGIN");
 
-    // 1) load round w/ locking (need show_id for votes table)
     const r = await client.query(
       `SELECT id, show_id, status AS db_status, start_time, end_time, counter_type
        FROM rounds
@@ -86,9 +71,6 @@ exports.submitOnlineVote = async ({ roundId, contestantId, email }) => {
     }
 
     const round = r.rows[0];
-    const showId = round.show_id;
-
-    // 2) compute voting status
     const now = new Date();
     let status = round.db_status;
 
@@ -101,7 +83,6 @@ exports.submitOnlineVote = async ({ roundId, contestantId, email }) => {
       else if (now >= end) status = "closed";
     }
 
-    // 3) auto sync status closed to DB
     if (status === "closed" && round.db_status !== "closed") {
       await client.query(
         `UPDATE rounds SET status='closed' WHERE id=$1`,
@@ -109,12 +90,10 @@ exports.submitOnlineVote = async ({ roundId, contestantId, email }) => {
       );
     }
 
-    // 4) final guard for voting
     if (status !== "voting") {
       throw new Error("Voting is not open");
     }
 
-    // 5) contestant validation
     const contestantRes = await client.query(
       `SELECT 1 FROM round_contestants
        WHERE round_id=$1 AND contestant_id=$2`,
@@ -127,13 +106,11 @@ exports.submitOnlineVote = async ({ roundId, contestantId, email }) => {
 
     const emailLower = email.trim().toLowerCase();
 
-    // 6) insert into votes (round_id, email) - กันโหวตซ้ำต่อ round
     await client.query(
       `INSERT INTO votes (round_id, email) VALUES ($1, $2)`,
       [roundId, emailLower]
     );
 
-    // 7) insert into online_votes
     await client.query(
       `INSERT INTO online_votes (round_id, contestant_id, voter_email)
        VALUES ($1, $2, $3)`,
@@ -148,7 +125,7 @@ exports.submitOnlineVote = async ({ roundId, contestantId, email }) => {
       const isVotes = err.constraint && err.constraint.includes("votes");
       throw new Error(
         isVotes
-          ? "อีเมลนี้เคยโหวตในรายการนี้แล้ว"
+          ? "This email has already voted in this show"
           : "This email has already voted in this round"
       );
     }
@@ -159,12 +136,7 @@ exports.submitOnlineVote = async ({ roundId, contestantId, email }) => {
   }
 };
 
-
-/**
- * Get rank by public slug (live or final based on results_computed)
- */
 exports.getLiveRankBySlug = async (publicSlug) => {
-  // 1) หา round จาก slug
   const roundRes = await pool.query(
     `SELECT id, results_computed
      FROM rounds
@@ -178,12 +150,11 @@ exports.getLiveRankBySlug = async (publicSlug) => {
 
   const roundId = roundRes.rows[0].id;
   const resultsComputed = roundRes.rows[0].results_computed;
-  
+
   console.log(`Round ${roundId} results_computed:`, resultsComputed);
-  console.log(`Type of results_computed:`, typeof resultsComputed);
+  console.log("Type of results_computed:", typeof resultsComputed);
 
   if (resultsComputed) {
-    // Return final scoreboard - แสดงทุกคนไม่ว่าจะมีการคำนวณคะแนนหรือไม่
     const result = await pool.query(
       `SELECT
         c.id,
@@ -197,39 +168,38 @@ exports.getLiveRankBySlug = async (publicSlug) => {
       FROM round_contestants rc
       JOIN contestants c ON c.id = rc.contestant_id
       WHERE rc.round_id = $1
-      ORDER BY 
-        CASE WHEN rc.rank IS NOT NULL THEN rc.rank ELSE 999999 END ASC, 
-        CASE WHEN rc.total_score IS NOT NULL THEN rc.total_score ELSE 0 END DESC, 
+      ORDER BY
+        CASE WHEN rc.rank IS NOT NULL THEN rc.rank ELSE 999999 END ASC,
+        CASE WHEN rc.total_score IS NOT NULL THEN rc.total_score ELSE 0 END DESC,
         c.stage_name ASC`,
       [roundId]
     );
     return result.rows;
-  } else {
-    // Return live scoreboard
-    const result = await pool.query(
-      `SELECT
-        c.id,
-        c.stage_name,
-        c.image_url,
-        rc.rank,
-        COUNT(DISTINCT ov.id) AS online_votes,
-        COUNT(DISTINCT rv.id) AS remote_votes,
-        COUNT(DISTINCT ov.id) + COUNT(DISTINCT rv.id) AS live_score
-      FROM round_contestants rc
-      JOIN contestants c ON c.id = rc.contestant_id
-      LEFT JOIN online_votes ov
-        ON ov.round_id = rc.round_id
-       AND ov.contestant_id = rc.contestant_id
-      LEFT JOIN remote_votes rv
-        ON rv.round_id = rc.round_id
-       AND rv.contestant_id = rc.contestant_id
-      WHERE rc.round_id = $1
-      GROUP BY c.id, rc.rank
-      ORDER BY live_score DESC, c.stage_name ASC`,
-      [roundId]
-    );
-    return result.rows;
   }
+
+  const result = await pool.query(
+    `SELECT
+      c.id,
+      c.stage_name,
+      c.image_url,
+      rc.rank,
+      COUNT(DISTINCT ov.id) AS online_votes,
+      COUNT(DISTINCT rv.id) AS remote_votes,
+      COUNT(DISTINCT ov.id) + COUNT(DISTINCT rv.id) AS live_score
+    FROM round_contestants rc
+    JOIN contestants c ON c.id = rc.contestant_id
+    LEFT JOIN online_votes ov
+      ON ov.round_id = rc.round_id
+     AND ov.contestant_id = rc.contestant_id
+    LEFT JOIN remote_votes rv
+      ON rv.round_id = rc.round_id
+     AND rv.contestant_id = rc.contestant_id
+    WHERE rc.round_id = $1
+    GROUP BY c.id, rc.rank
+    ORDER BY live_score DESC, c.stage_name ASC`,
+    [roundId]
+  );
+  return result.rows;
 };
 
 exports.getRoomBySlug = async (publicSlug) => {
@@ -237,7 +207,6 @@ exports.getRoomBySlug = async (publicSlug) => {
     throw new Error("publicSlug is required");
   }
 
-  // 1) load round
   const roundRes = await pool.query(
     `
     SELECT
@@ -264,7 +233,6 @@ exports.getRoomBySlug = async (publicSlug) => {
 
   const round = roundRes.rows[0];
 
-  // 2) load contestants in this round
   const contestantsRes = await pool.query(
     `
     SELECT
@@ -287,7 +255,6 @@ exports.getRoomBySlug = async (publicSlug) => {
     [round.id]
   );
 
-  // 3) return combined object
   return {
     ...round,
     contestants: contestantsRes.rows,

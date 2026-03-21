@@ -58,7 +58,8 @@
 .main-content {
   max-width: 1000px;
   margin: 2.5rem auto;
-  padding: 0 1rem;
+  padding: 0 1rem 110px;
+  min-height: calc(100vh - 130px);
 }
 
 h1 {
@@ -76,6 +77,9 @@ h1 {
   border-radius: 14px;
   padding: 2.5rem;
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.06);
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 /* ===============================
@@ -300,38 +304,35 @@ textarea {
    Form Actions
 ================================ */
 .form-actions {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 2.5rem;
+  margin-top: auto;
   padding-top: 1.5rem;
   border-top: 1px solid #eee;
+  background: linear-gradient(180deg, rgba(255, 253, 250, 0) 0%, #fffdfa 32%);
 }
 
 .btn {
   padding: 0.75rem 1.75rem;
-  border-radius: 8px;
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
+  border: 1px solid transparent;
 }
 
 .btn,
 .create-btn {
-  min-width: 160px;
-  height: 44px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
 .btn-secondary {
-  background-color: #f1f1f1;
-  color: #333;
+  background-color: #ece8e3;
+  color: #4a4037;
 }
 
 .btn-secondary:hover {
-  background-color: #e5e5e5;
+  background-color: #e3ddd6;
 }
 
 .btn.btn-secondary {
@@ -341,13 +342,13 @@ textarea {
 
 .create-btn,
 .btn-primary {
-  background-color: #ffd77a;
-  color: #111;
+  background-color: #ffe7a3;
+  color: #4d3d11;
 }
 
 .create-btn:hover,
 .btn-primary:hover {
-  background-color: #f5c542;
+  background-color: #ffdf8a;
 }
 
 /* ===============================
@@ -368,7 +369,6 @@ textarea {
   }
 
   .form-actions {
-    flex-direction: column;
     gap: 1rem;
   }
 }

@@ -1,4 +1,3 @@
-// vote_next_server/src/modules/admin/admin.controller.js
 const jwt = require("jsonwebtoken");
 const env = require("../../config/env");
 const {
@@ -13,9 +12,10 @@ async function adminLogin(req, res, next) {
     const { email, password } = req.body;
 
     if (!email || !password) {
-      return res
-        .status(400)
-        .json({ error: true, message: "email และ password จำเป็นต้องกรอก" });
+      return res.status(400).json({
+        error: true,
+        message: "Email and password are required",
+      });
     }
 
     const admin = await findAdminByEmail(email);
@@ -23,29 +23,24 @@ async function adminLogin(req, res, next) {
     console.log("DEBUG: Requested email =", email);
 
     if (!admin) {
-      return res
-        .status(401)
-        .json({ error: true, message: "Invalid email or password" });
+      return res.status(401).json({ error: true, message: "Invalid email or password" });
     }
 
     const isValid = verifyPassword(password, admin.password_hash);
 
     if (!isValid) {
-      return res
-        .status(401)
-        .json({ error: true, message: "Invalid email or password" });
+      return res.status(401).json({ error: true, message: "Invalid email or password" });
     }
 
-    // Generate JWT token
     const payload = {
       id: admin.id,
       email: admin.email,
       full_name: admin.full_name,
-      type: 'admin'
+      type: "admin",
     };
-    
+
     const secret = env.JWT_SECRET || "votenext-admin-secret";
-    const token = jwt.sign(payload, secret, { expiresIn: '24h' });
+    const token = jwt.sign(payload, secret, { expiresIn: "24h" });
 
     return res.json({
       success: true,
@@ -54,18 +49,8 @@ async function adminLogin(req, res, next) {
         id: admin.id,
         email: admin.email,
         full_name: admin.full_name,
-        profile_img: admin.profile_img
-      }
-    });
-    
-    console.log("RESPONSE SENT:", {
-      success: true,
-      admin: {
-        id: admin.id,
-        email: admin.email,
-        full_name: admin.full_name,
-        profile_img: admin.profile_img
-      }
+        profile_img: admin.profile_img,
+      },
     });
   } catch (err) {
     next(err);
@@ -77,40 +62,43 @@ async function resetPassword(req, res, next) {
     const { email, newPassword } = req.body;
 
     if (!email || !newPassword) {
-      return res
-        .status(400)
-        .json({ error: true, message: "กรุณากรอก email และรหัสผ่านใหม่" });
+      return res.status(400).json({
+        error: true,
+        message: "Please provide your email and a new password",
+      });
     }
 
     if (newPassword.length < 6) {
-      return res
-        .status(400)
-        .json({ error: true, message: "รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร" });
+      return res.status(400).json({
+        error: true,
+        message: "Password must be at least 6 characters long",
+      });
     }
 
     const admin = await findAdminByEmail(email);
 
     if (!admin) {
-      return res
-        .status(404)
-        .json({ error: true, message: "ไม่พบ email นี้ในระบบ" });
+      return res.status(404).json({
+        error: true,
+        message: "Email address not found",
+      });
     }
 
     console.log("Admin found, updating password...");
-    // อัพเดตรหัสผ่านใหม่ (ในระบบจริงควรใช้ bcrypt)
     const success = await updateAdminPassword(admin.id, newPassword);
 
     if (!success) {
-      return res
-        .status(500)
-        .json({ error: true, message: "อัพเดตรหัสผ่านไม่สำเร็จ" });
+      return res.status(500).json({
+        error: true,
+        message: "Failed to update password",
+      });
     }
-    
+
     console.log(`Password updated for admin email: ${email}`);
-    
+
     return res.json({
       success: true,
-      message: "รหัสผ่านได้รับการอัพเดตเรียบร้อยแล้ว"
+      message: "Password updated successfully",
     });
   } catch (err) {
     console.error("Reset password error:", err);
@@ -123,47 +111,47 @@ async function updateProfile(req, res, next) {
     const { adminId, profile_img } = req.body;
 
     if (!adminId || !profile_img) {
-      return res
-        .status(400)
-        .json({ error: true, message: "กรุณาระบุ adminId และ profile_img" });
+      return res.status(400).json({
+        error: true,
+        message: "adminId and profile_img are required",
+      });
     }
 
-    // ดึงข้อมูล admin ปัจจุบันจาก database เพื่อให้ตรงกับตอน login
     console.log("DEBUG: req.admin =", req.admin);
     const admin = await findAdminByEmail(req.admin.email);
-    
+
     if (!admin) {
-      return res
-        .status(404)
-        .json({ error: true, message: "ไม่พบข้อมูล admin" });
+      return res.status(404).json({
+        error: true,
+        message: "Admin not found",
+      });
     }
 
-    // อัพเดตรูปภาพใน database
     const success = await updateAdminProfileImage(adminId, profile_img);
 
     if (!success) {
-      return res
-        .status(500)
-        .json({ error: true, message: "อัพเดตรูปภาพไม่สำเร็จ" });
+      return res.status(500).json({
+        error: true,
+        message: "Failed to update profile image",
+      });
     }
-    
+
     console.log(`Profile image updated for admin ID: ${adminId}`);
-    
-    // สร้าง token ใหม่จากข้อมูล admin เดียวกับตอน login
+
     const payload = {
       id: admin.id,
       email: admin.email,
       full_name: admin.full_name,
-      type: 'admin'
+      type: "admin",
     };
-    
+
     const secret = env.JWT_SECRET || "votenext-admin-secret";
-    const newToken = jwt.sign(payload, secret, { expiresIn: '24h' });
-    
+    const newToken = jwt.sign(payload, secret, { expiresIn: "24h" });
+
     return res.json({
       success: true,
       token: newToken,
-      message: "อัพเดตรูปภาพสำเร็จแล้ว"
+      message: "Profile image updated successfully",
     });
   } catch (err) {
     next(err);

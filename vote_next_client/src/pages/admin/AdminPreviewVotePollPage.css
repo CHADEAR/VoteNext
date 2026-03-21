@@ -7,9 +7,10 @@
 }
 
 .preview-container{
-  padding: 24px 24px 30px 24px;
+  padding: 24px 24px 110px 24px;
   width: min(1100px, 90%);
   margin: 0 auto;
+  min-height: calc(100vh - 92px);
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -103,10 +104,9 @@
 }
 
 .preview-actions {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   width: 100%;
+  margin-top: auto;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, #ffffff 36%);
 }
 
 .manual-time-settings{

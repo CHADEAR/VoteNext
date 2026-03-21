@@ -19,7 +19,7 @@ export default function VoteEnterEmailPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!email || !email.trim()) {
-      setError("กรุณากรอกอีเมล");
+      setError("Please enter your email");
       return;
     }
     setError("");
@@ -38,7 +38,7 @@ export default function VoteEnterEmailPage() {
       const msg =
         err?.response?.data?.message ||
         err?.message ||
-        "ยืนยันอีเมลไม่สำเร็จ กรุณาลองใหม่";
+        "Email verification failed. Please try again.";
       if (msg.includes("เคยโหวต") || msg.includes("already voted")) {
         navigate(`/vote/${publicSlug}/rank`);
         return;
@@ -66,13 +66,13 @@ export default function VoteEnterEmailPage() {
           />
 
           {error && <div className="error-message">{error}</div>}
-          <h5>Enter email for vote </h5>
+          <h5>Enter your email to vote</h5>
           <button
             type="submit"
             className="submit-button"
             disabled={loading}
           >
-            {loading ? "กำลังตรวจสอบ..." : "Vote now"}
+            {loading ? "Checking..." : "Vote Now"}
           </button>
         </form>
       </main>

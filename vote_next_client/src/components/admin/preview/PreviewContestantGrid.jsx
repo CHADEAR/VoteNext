@@ -43,7 +43,7 @@ export default function PreviewContestantGrid({ contestants = [] }) {
               {c.stage_name || c.name || "No Name"}
             </div>
 
-            <button className="preview-vote-btn">โหวต</button>
+            <button className="preview-vote-btn">Vote</button>
           </div>
         );
       })}

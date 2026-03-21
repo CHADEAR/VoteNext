@@ -1,80 +1,284 @@
-// src/page/admin/AdminRoundResultsPage.jsx
-
-import React, { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { 
-  computeRoundResults, 
-  createNextRound, 
-  finalizeShow, 
-  getRound 
+import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import {
+  FiArrowLeft,
+  FiMinus,
+  FiPlus,
+  FiRefreshCw,
+  FiWifi,
+} from "react-icons/fi";
+import { FaMedal, FaStar } from "react-icons/fa";
+import { MdOutlineSettingsRemote } from "react-icons/md";
+import {
+  computeRoundResults,
+  createNextRound,
+  finalizeShow,
+  getRound,
 } from "../../api/rounds.api";
+import Navbar from "../../components/layout/Navbar";
+import { clearAdminSession } from "../../services/auth.service";
 import { toast } from "react-toastify";
 import "./AdminRoundResultsPage.css";
+
+const STATUS_META = {
+  pending: {
+    label: "Pending",
+    description: "Not started yet",
+  },
+  voting: {
+    label: "Voting",
+    description: "Voting is in progress",
+  },
+  closed: {
+    label: "Closed",
+    description: "Voting has ended",
+  },
+  end: {
+    label: "Closed",
+    description: "Voting has ended",
+  },
+};
+
+const formatNumber = (value) => Number(value || 0).toLocaleString("en-US");
+
+const buildJudgeScoreMap = (contestants, defaultValue = 0) =>
+  contestants.reduce((scores, contestant) => {
+    scores[contestant.id] = defaultValue;
+    return scores;
+  }, {});
+
+const buildInitialJudgeScoreMap = (contestants) =>
+  contestants.reduce((scores, contestant) => {
+    scores[contestant.id] = Number(contestant.judge_score) || 0;
+    return scores;
+  }, {});
+
+const getContestantName = (contestant) =>
+  contestant?.name || contestant?.stage_name || contestant?.label || "Contestant";
+
+const getRankLabel = (rank, fallbackIndex) => {
+  const safeRank = Number(rank) || fallbackIndex + 1;
+
+  if (safeRank === 1) return "#1";
+  if (safeRank === 2) return "#2";
+  if (safeRank === 3) return "#3";
+  return `#${safeRank}`;
+};
+
+const getRankTone = (rank, fallbackIndex) => {
+  const safeRank = Number(rank) || fallbackIndex + 1;
+
+  if (safeRank === 1) return "gold";
+  if (safeRank === 2) return "silver";
+  if (safeRank === 3) return "bronze";
+  return "default";
+};
+
+const getCardTone = (rank, fallbackIndex) => {
+  const safeRank = Number(rank) || fallbackIndex + 1;
+
+  if (safeRank === 1) return "yellow";
+  if (safeRank === 2) return "blue";
+  if (safeRank === 3) return "green";
+  return "gray";
+};
+
+const getRankMedalLabel = (rank, fallbackIndex) => {
+  const safeRank = Number(rank) || fallbackIndex + 1;
+
+  if (safeRank === 1) return "1st place";
+  if (safeRank === 2) return "2nd place";
+  if (safeRank === 3) return "3rd place";
+  return `Rank ${safeRank}`;
+};
 
 export default function AdminRoundResultsPage() {
   const { roundId } = useParams();
   const navigate = useNavigate();
-  
+  const normalizedRoundId = String(roundId || "").trim();
+
   const [round, setRound] = useState(null);
   const [contestants, setContestants] = useState([]);
   const [judgeScores, setJudgeScores] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [isFinalizing, setIsFinalizing] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [isEditingScores, setIsEditingScores] = useState(false);
 
-  // Load round data
+  const loadRound = async () => {
+    if (!normalizedRoundId || normalizedRoundId === "undefined" || normalizedRoundId === "null") {
+      toast.error("Invalid round ID");
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      const response = await getRound(normalizedRoundId);
+      const data = response?.data?.data || response?.data || null;
+      const nextContestants = Array.isArray(data?.contestants) ? data.contestants : [];
+
+      setRound(data);
+      setContestants(nextContestants);
+      setJudgeScores(buildInitialJudgeScoreMap(nextContestants));
+      setIsEditingScores(false);
+    } catch (error) {
+      console.error("Failed to load round:", error);
+      toast.error("Failed to load round data");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const loadRound = async () => {
-      try {
-        setIsLoading(true);
-        const response = await getRound(roundId);
-
-        const data = response?.data?.data || response?.data || null;
-        setRound(data);
-
-        if (Array.isArray(data?.contestants)) {
-          setContestants(data.contestants);
-        } else {
-          setContestants([]);
-        }
-      } catch (error) {
-        console.error("Failed to load round:", error);
-        toast.error("Failed to load round data");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
     loadRound();
-  }, [roundId]);
+  }, [normalizedRoundId]);
 
-  // Check if results have been computed (backend-driven)
-  const hasComputed = Boolean(round?.results_computed) || contestants.some(c => c.rank > 0);
+  const hasServerComputed =
+    Boolean(round?.results_computed) ||
+    contestants.some((contestant) => Number(contestant.rank) > 0);
 
+  const showRankedList = hasServerComputed && !isEditingScores;
   const isFinalRound = round?.is_final || false;
 
-  const rankedForModal = [...contestants]
-    .sort((a, b) => (Number(b.total_score) || 0) - (Number(a.total_score) || 0));
+  const displayContestants = useMemo(() => {
+    return contestants.map((contestant) => {
+      const onlineVotes = Number(contestant.online_votes) || 0;
+      const remoteVotes = Number(contestant.remote_votes) || 0;
+      const displayJudgeScore = showRankedList
+        ? Number(contestant.judge_score) || 0
+        : Number(judgeScores[contestant.id] ?? 0);
 
-  // Compute Scores and save to backend
+      return {
+        ...contestant,
+        online_votes: onlineVotes,
+        remote_votes: remoteVotes,
+        displayJudgeScore,
+        displayName: getContestantName(contestant),
+        displayTotalScore: showRankedList
+          ? Number(contestant.total_score) || 0
+          : onlineVotes + remoteVotes + displayJudgeScore,
+      };
+    });
+  }, [contestants, judgeScores, showRankedList]);
+
+  const orderedContestants = useMemo(() => {
+    if (!showRankedList) {
+      return displayContestants;
+    }
+
+    return [...displayContestants].sort((left, right) => {
+      const leftRank = Number(left.rank) || Number.MAX_SAFE_INTEGER;
+      const rightRank = Number(right.rank) || Number.MAX_SAFE_INTEGER;
+
+      if (leftRank !== rightRank) {
+        return leftRank - rightRank;
+      }
+
+      return (Number(right.displayTotalScore) || 0) - (Number(left.displayTotalScore) || 0);
+    });
+  }, [displayContestants, showRankedList]);
+
+  const totalVotes = useMemo(
+    () =>
+      orderedContestants.reduce(
+        (sum, contestant) => sum + contestant.online_votes + contestant.remote_votes,
+        0
+      ),
+    [orderedContestants]
+  );
+
+  const totalScore = useMemo(
+    () =>
+      orderedContestants.reduce(
+        (sum, contestant) => sum + (Number(contestant.displayTotalScore) || 0),
+        0
+      ),
+    [orderedContestants]
+  );
+
+  const rankedForModal = useMemo(
+    () =>
+      [...contestants].sort(
+        (left, right) => (Number(right.total_score) || 0) - (Number(left.total_score) || 0)
+      ),
+    [contestants]
+  );
+
+  const statusMeta = STATUS_META[round?.status] || {
+    label: String(round?.status || "Pending"),
+    description: String(round?.status || "pending"),
+  };
+
+  const nextRoundButtonLabel = isFinalRound ? "Finalize Show" : "Create Next Round";
+
+  const handleLogout = () => {
+    clearAdminSession();
+    navigate("/admin/login");
+  };
+
+  const handleJudgeScoreChange = (contestantId, value) => {
+    setJudgeScores((currentScores) => ({
+      ...currentScores,
+      [contestantId]: Math.max(0, Number(value) || 0),
+    }));
+  };
+
+  const handleJudgeIncrement = (contestantId) => {
+    setJudgeScores((currentScores) => ({
+      ...currentScores,
+      [contestantId]: (Number(currentScores[contestantId]) || 0) + 1,
+    }));
+  };
+
+  const handleJudgeDecrement = (contestantId) => {
+    setJudgeScores((currentScores) => ({
+      ...currentScores,
+      [contestantId]: Math.max(0, (Number(currentScores[contestantId]) || 0) - 1),
+    }));
+  };
+
+  const handleResetScores = () => {
+    if (contestants.length === 0) {
+      return;
+    }
+
+    setJudgeScores(buildJudgeScoreMap(contestants, 0));
+
+    if (hasServerComputed) {
+      setIsEditingScores(true);
+      toast.info("Returned to score entry mode");
+      return;
+    }
+
+    toast.info("All scores have been reset");
+  };
+
   const handleCompute = async () => {
     try {
       setIsLoading(true);
-      
-      // Prepare judge scores for backend
+
       const scores = Object.entries(judgeScores).map(([contestantId, score]) => ({
         contestantId,
-        score: Number(score) || 0
+        score: Number(score) || 0,
       }));
 
-      // Call backend to compute results with judge scores
-      const response = await computeRoundResults(roundId, scores);
+      const response = await computeRoundResults(normalizedRoundId, scores);
       const data = response?.data?.data || response?.data;
-      
-      if (data && Array.isArray(data)) {
+
+      if (Array.isArray(data)) {
         setContestants(data);
       }
-      
+
+      setRound((currentRound) =>
+        currentRound
+          ? {
+              ...currentRound,
+              results_computed: true,
+            }
+          : currentRound
+      );
+      setIsEditingScores(false);
       toast.success("Results computed successfully!");
     } catch (error) {
       console.error("Failed to compute results:", error);
@@ -88,18 +292,18 @@ export default function AdminRoundResultsPage() {
     try {
       setIsLoading(true);
 
-      const response = await createNextRound(roundId, {
-        mode: 'advanced',
+      await createNextRound(normalizedRoundId, {
+        mode: "advanced",
         takeTop: data.takeTop,
         wildcards: data.wildcards,
         removes: data.removes,
-        roundName: `Round ${parseInt(round.round_name.match(/\d+/)?.[0] || 0) + 1}`
+        roundName: `Round ${
+          parseInt(round?.round_name?.match(/\d+/)?.[0] || "0", 10) + 1
+        }`,
       });
 
-      const info = response?.data?.data || response?.data;
-      navigate(`/`);
+      navigate("/");
       toast.success("Next round created successfully");
-
     } catch (error) {
       console.error("Failed to create next round:", error);
       toast.error(error.response?.data?.message || "Failed to create next round");
@@ -111,16 +315,13 @@ export default function AdminRoundResultsPage() {
   const handleFinalizeShow = async (data) => {
     try {
       setIsFinalizing(true);
-      await finalizeShow(roundId, {
+      await finalizeShow(normalizedRoundId, {
         debut: data.debut,
-        target: data.takeTop
+        target: data.takeTop,
       });
 
       toast.success("Show finalized successfully!");
-      const resp = await getRound(roundId);
-      const info = resp?.data?.data || resp?.data;
-      setRound(info);
-
+      await loadRound();
     } catch (error) {
       console.error("Failed to finalize show:", error);
       toast.error(error.response?.data?.message || "Failed to finalize show");
@@ -131,183 +332,255 @@ export default function AdminRoundResultsPage() {
   };
 
   return (
-    <div className="round-results">
-      <h2 className="round-results__title">{round?.show_title || 'Loading...'}</h2>
-      <div className="round-results__meta">
-        {round?.round_name || 'Loading...'} — {round?.status?.toUpperCase() || 'LOADING'} |
-        {contestants.length} Contestants
-      </div>
+    <div className="round-results-page">
+      <Navbar showProfile onLogout={handleLogout} />
 
-      {isLoading && <div className="round-results__loading">Loading...</div>}
+      <main className="round-results">
+        <section className="results-summary">
+          <div className="results-summary__identity">
+            <div className="results-summary__copy">
+              <h1 className="results-summary__title">
+                {round?.show_title || "Vote Room"}
+              </h1>
+              <div className={`results-summary__status results-summary__status--${round?.status || "pending"}`}>
+                <span className="results-summary__status-dot" />
+                <span>{statusMeta.description}</span>
+              </div>
+            </div>
+          </div>
 
-      {!isLoading && (
-        <>
-          {!hasComputed ? (
+          <div className="results-summary__stats">
+            <article className="results-summary__stat-card">
+              <div className="results-summary__stat-value">{formatNumber(orderedContestants.length)}</div>
+              <div className="results-summary__stat-label">Contestants</div>
+            </article>
+
+            <article className="results-summary__stat-card">
+              <div className="results-summary__stat-value">{formatNumber(totalVotes)}</div>
+              <div className="results-summary__stat-label">Votes</div>
+            </article>
+
+            <article className="results-summary__stat-card">
+              <div className="results-summary__stat-value">{formatNumber(totalScore)}</div>
+              <div className="results-summary__stat-label">Total Score</div>
+            </article>
+          </div>
+        </section>
+
+        <section className="results-actions">
+          <div className="results-actions__buttons">
             <button
+              type="button"
+              className="results-actions__button results-actions__button--secondary"
+              onClick={handleResetScores}
+              disabled={isLoading || orderedContestants.length === 0}
+            >
+              <FiRefreshCw />
+              Reset All Scores
+            </button>
+
+            <button
+              type="button"
+              className="results-actions__button results-actions__button--primary"
               onClick={handleCompute}
-              className="round-results__action round-results__action--compute"
+              disabled={isLoading || orderedContestants.length === 0 || showRankedList}
             >
               Compute Results
             </button>
-          ) : (
-            <button
-              onClick={() => setShowModal(true)}
-              disabled={isLoading || isFinalizing}
-              className={`round-results__action ${
-                isFinalizing ? "round-results__action--disabled" : "round-results__action--next"
-              }`}
-            >
-              {isFinalRound ? 'Finalize Show' : 'Create Next Round'}
-            </button>
-          )}
-        </>
-      )}
+          </div>
+        </section>
 
-      <div className="round-results__section">
-        <div className="round-results__grid">
-          {hasComputed ? (
-            // Show ranked results after compute
-            contestants.map((c) => {
-              const rankColors = {
-                1: '#fff3c9', // Gold
-                2: '#fff3c9', // Silver
-                3: '#fff3c9'  // Bronze
-              };
-              
-              return (
-                <div
-                  key={c.id}
-                  className="rank-card"
-                  style={{ border: `1px solid ${rankColors[c.rank] || '#E5E7EB'}` }}
-                >
-                  <div
-                    className="rank-card__header"
-                    style={{
-                      background: rankColors[c.rank] || (c.rank <= 7 ? '#F9FAFB' : '#FFFFFF')
-                    }}
+        {isLoading && <div className="round-results__loading">Loading...</div>}
+
+        {!isLoading && (
+          <>
+            {showRankedList ? (
+              <section className="results-list">
+                {orderedContestants.map((contestant, index) => (
+                  <article
+                    key={contestant.id}
+                    className={`result-card result-card--${getCardTone(contestant.rank, index)}`}
                   >
-                    <div
-                      className="rank-badge"
-                      style={{
-                        background: rankColors[c.rank] || (c.rank <= 7 ? '#3B82F6' : '#E5E7EB'),
-                        color: c.rank <= 3 ? '#000' : (c.rank <= 7 ? '#FFF' : '#6B7280')
-                      }}
-                    >
-                      {c.rank <= 3 ? ['🥇', '🥈', '🥉'][c.rank - 1] : c.rank}
-                    </div>
-                    <div className="rank-card__body">
-                      <div
-                        className="rank-card__name"
-                        style={{ color: c.rank <= 7 ? '#1F2937' : '#6B7280' }}
-                      >
-                        {c.name}
-                      </div>
-                      <div
-                        className="rank-card__score"
-                        style={{ color: c.rank <= 7 ? '#4B5563' : '#9CA3AF' }}
-                      >
-                        Total Score: <strong>{c.total_score ?? 0}</strong> points
-                      </div>
-                    </div>
-                    {c.rank === 1 && (
-                      <div
-                        className="rank-card__winner"
-                        style={{
-                          background: 'rgba(255, 215, 0, 0.2)',
-                          color: '#B45309'
-                        }}
-                      >
-                        🏆 WINNER
-                      </div>
-                    )}
-                  </div>
-                  <div className="rank-card__stats">
-                    <div className="rank-card__statlist">
-                      <span>👥 <strong>{c.online_votes ?? 0}</strong> votes</span>
-                      <span>📡 <strong>{c.remote_votes ?? 0}</strong> remote</span>
-                      <span>⭐ <strong>{c.judge_score ?? 0}</strong> judge</span>
-                    </div>
-                    {c.rank <= 7 && (
-                      <div
-                        className="rank-card__status"
-                        style={{ color: c.rank <= 3 ? '#10B981' : '#6B7280' }}
-                      >
-                        {c.rank <= 3 ? 'Advances to next round' : 'Eliminated'}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })
-          ) : (
-            // Show input form before compute
-            contestants.map((c) => (
-              <div key={c.id} className="entry-card">
-                <div>
-                  <div className="entry-card__name">{c.name}</div>
-                  <div className="entry-card__online">
-                    Online: {c.online_votes || 0} votes
-                  </div>
-                </div>
-                <div className="entry-card__controls">
-                  <div className="entry-card__judge">
-                    <span style={{ marginRight: '8px' }}>Judge:</span>
-                    <input
-                      type="number"
-                      placeholder="0"
-                      value={judgeScores[c.id] || ""}
-                      disabled={hasComputed}
-                      onChange={e =>
-                        setJudgeScores({
-                          ...judgeScores,
-                          [c.id]: Number(e.target.value) || 0
-                        })
-                      }
-                      className="entry-card__input"
-                      style={{ background: hasComputed ? '#F3F4F6' : '#FFFFFF' }}
-                      min="0"
-                      step="1"
-                    />
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
+                    <div className="result-card__hero">
+                      <div className="result-card__hero-left">
+                        <div className="result-card__medal">
+                          <span
+                            className={`result-card__medal-icon result-card__medal-icon--${getRankTone(contestant.rank, index)}`}
+                            aria-label={getRankMedalLabel(contestant.rank, index)}
+                            title={getRankMedalLabel(contestant.rank, index)}
+                          >
+                            <FaMedal />
+                          </span>
+                          <span
+                            className={`result-card__rank-number result-card__rank-number--${getRankTone(contestant.rank, index)}`}
+                          >
+                            {getRankLabel(contestant.rank, index)}
+                          </span>
+                        </div>
 
-      {showModal && hasComputed && (
-        <AdvancedModal
-          ranked={rankedForModal.map(c => ({ ...c, final: c.total_score }))}
-          onClose={() => setShowModal(false)}
-          onSubmit={isFinalRound ? handleFinalizeShow : handleCreateNextRound}
-          isFinalRound={isFinalRound}
-        />
-      )}
+                        <div className="result-card__hero-copy">
+                          <div className="result-card__rank-line">
+                            {contestant.displayName}
+                          </div>
+
+                          <div className="result-card__score">
+                            Total Score: <strong>{formatNumber(contestant.displayTotalScore)}</strong> points
+                          </div>
+                        </div>
+                      </div>
+
+                      {Number(contestant.rank) === 1 && (
+                        <div className="result-card__winner-pill">WINNER</div>
+                      )}
+                    </div>
+
+                    <div className="result-card__bottom">
+                      <div className="result-card__stats">
+                        <span className="result-card__stat-chip result-card__stat-chip--online">
+                          <FiWifi />
+                          <span>Online</span>
+                          <strong>{formatNumber(contestant.online_votes)}</strong>
+                        </span>
+                        <span className="result-card__stat-chip result-card__stat-chip--remote">
+                          <MdOutlineSettingsRemote />
+                          <span>Remote</span>
+                          <strong>{formatNumber(contestant.remote_votes)}</strong>
+                        </span>
+                        <span className="result-card__stat-chip result-card__stat-chip--judge">
+                          <FaStar />
+                          <span>Judge</span>
+                          <strong>{formatNumber(contestant.displayJudgeScore)}</strong>
+                        </span>
+                      </div>
+
+                      <div className="result-card__footer">
+                        {contestant.rank && contestant.rank <= 7
+                          ? "Advances to next round"
+                          : "Result recorded"}
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </section>
+            ) : (
+              <section className="entry-list">
+                {orderedContestants.map((contestant, index) => (
+                  <article key={contestant.id} className="entry-card">
+                    <div className="entry-card__left">
+                      <div className="entry-card__index">{index + 1}</div>
+
+                      <div className="entry-card__content">
+                        <div className="entry-card__name">{contestant.displayName}</div>
+                        <div className="entry-card__meta">
+                          <span>Online {formatNumber(contestant.online_votes)} votes</span>
+                          <span>Remote {formatNumber(contestant.remote_votes)} votes</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="entry-card__right">
+                      <label className="entry-card__judge-label" htmlFor={`judge-${contestant.id}`}>
+                        Judge
+                      </label>
+
+                      <div className="entry-card__score-controls">
+                        <button
+                          type="button"
+                          className="entry-card__icon-btn"
+                          onClick={() => handleJudgeDecrement(contestant.id)}
+                        >
+                          <FiMinus />
+                        </button>
+
+                        <input
+                          id={`judge-${contestant.id}`}
+                          type="number"
+                          className="entry-card__input"
+                          value={judgeScores[contestant.id] ?? 0}
+                          onChange={(event) =>
+                            handleJudgeScoreChange(contestant.id, event.target.value)
+                          }
+                          min="0"
+                          step="1"
+                        />
+
+                        <button
+                          type="button"
+                          className="entry-card__icon-btn"
+                          onClick={() => handleJudgeIncrement(contestant.id)}
+                        >
+                          <FiPlus />
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </section>
+            )}
+
+            <div className="results-footer admin-page-actions">
+              <button
+                type="button"
+                className="results-footer__button results-footer__button--secondary admin-page-action-btn admin-page-action-btn--back"
+                onClick={() => navigate(-1)}
+              >
+                Back
+              </button>
+
+              <button
+                type="button"
+                className="results-footer__button results-footer__button--primary admin-page-action-btn admin-page-action-btn--primary"
+                onClick={() => setShowModal(true)}
+                disabled={!showRankedList || isLoading || isFinalizing}
+              >
+                {nextRoundButtonLabel}
+              </button>
+            </div>
+          </>
+        )}
+
+        {showModal && showRankedList && (
+          <AdvancedModal
+            ranked={rankedForModal.map((contestant) => ({
+              ...contestant,
+              final: contestant.total_score,
+            }))}
+            onClose={() => setShowModal(false)}
+            onSubmit={isFinalRound ? handleFinalizeShow : handleCreateNextRound}
+            isFinalRound={isFinalRound}
+          />
+        )}
+      </main>
     </div>
   );
 }
 
-function AdvancedModal({ ranked, onClose, onSubmit, isFinalRound=false }) {
+function AdvancedModal({ ranked, onClose, onSubmit, isFinalRound = false }) {
   const [takeTop, setTakeTop] = useState(3);
   const [wildcards, setWildcards] = useState([]);
   const [removes, setRemoves] = useState([]);
 
-  const toggleWildcard = id => setWildcards(w => w.includes(id) ? w.filter(x=>x!==id) : [...w,id]);
-  const toggleRemove = id => setRemoves(r => r.includes(id) ? r.filter(x=>x!==id) : [...r,id]);
+  const toggleWildcard = (id) =>
+    setWildcards((current) =>
+      current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
+    );
 
-  const base = ranked.slice(0, takeTop).map(x=>x.id);
-  const plus = wildcards.filter(id => !base.includes(id));
-  const minus = removes;
-  const nextIds = base.concat(plus).filter(id => !minus.includes(id));
-  const next = ranked.filter(x => nextIds.includes(x.id));
+  const toggleRemove = (id) =>
+    setRemoves((current) =>
+      current.includes(id) ? current.filter((item) => item !== id) : [...current, id]
+    );
+
+  const base = ranked.slice(0, takeTop).map((contestant) => contestant.id);
+  const extra = wildcards.filter((id) => !base.includes(id));
+  const nextIds = base.concat(extra).filter((id) => !removes.includes(id));
+  const next = ranked.filter((contestant) => nextIds.includes(contestant.id));
   const valid = next.length >= 2;
 
   return (
     <div className="modal-backdrop">
       <div className="modal">
         <h3 className="modal__title">
-          {isFinalRound ? 'Finalize Show' : 'Create Next Round'} (Advanced)
+          {isFinalRound ? "Finalize Show" : "Create Next Round"} (Advanced)
         </h3>
 
         <div className="modal__field">
@@ -317,45 +590,43 @@ function AdvancedModal({ ranked, onClose, onSubmit, isFinalRound=false }) {
             min={2}
             max={ranked.length}
             value={takeTop}
-            onChange={e => setTakeTop(Number(e.target.value))}
+            onChange={(event) => setTakeTop(Number(event.target.value))}
             className="modal__input"
           />
         </div>
 
         <div className="modal__section-title">Contestants</div>
-        {ranked.map((c,i)=>{
-          const rank=i+1;
-          const isBase=i<takeTop;
-          const isWildcard=wildcards.includes(c.id);
-          const isRemove=removes.includes(c.id);
+        {ranked.map((contestant, index) => {
+          const rank = index + 1;
+          const isBase = index < takeTop;
+          const isWildcard = wildcards.includes(contestant.id);
+          const isRemove = removes.includes(contestant.id);
+
           return (
             <div
-              key={c.id}
+              key={contestant.id}
               className="modal__item"
-              style={{ border: rank<=3 ? "2px solid #FFD872" : "1px solid #E6E1D9" }}
+              style={{ border: rank <= 3 ? "2px solid #FFD872" : "1px solid #E6E1D9" }}
             >
               <div className="modal__item-row">
                 <div className="modal__item-info">
-                  {rank===1 && "🥇"}
-                  {rank===2 && "🥈"}
-                  {rank===3 && "🥉"}
-                  {rank>3 && `#${rank}`}
-                  <span>{c.name}</span>
-                  <span className="modal__item-score">({c.final})</span>
+                  {getRankLabel(rank, index)}
+                  <span>{getContestantName(contestant)}</span>
+                  <span className="modal__item-score">({contestant.final})</span>
                 </div>
 
                 <div className="modal__item-actions">
                   <button
-                    onClick={()=>toggleWildcard(c.id)}
+                    onClick={() => toggleWildcard(contestant.id)}
                     className="modal__chip"
-                    style={{ background:isWildcard?"#E5D4FF":"#EDEDED" }}
+                    style={{ background: isWildcard ? "#E5D4FF" : "#EDEDED" }}
                   >
                     Wildcard
                   </button>
                   <button
-                    onClick={()=>toggleRemove(c.id)}
+                    onClick={() => toggleRemove(contestant.id)}
                     className="modal__chip"
-                    style={{ background:isRemove?"#FFB8A5":"#EDEDED" }}
+                    style={{ background: isRemove ? "#FFB8A5" : "#EDEDED" }}
                   >
                     Remove
                   </button>
@@ -369,33 +640,41 @@ function AdvancedModal({ ranked, onClose, onSubmit, isFinalRound=false }) {
 
         <div className="modal__summary">
           <div className="modal__section-title">
-            {isFinalRound ? 'Final Lineup:' : 'Next Round Participants:'}
+            {isFinalRound ? "Final Lineup:" : "Next Round Participants:"}
           </div>
           <ul className="modal__summary-list">
-            {next.map(x => <li key={x.id}>{x.name} ({x.final} pts)</li>)}
+            {next.map((contestant) => (
+              <li key={contestant.id}>
+                {getContestantName(contestant)} ({contestant.final} pts)
+              </li>
+            ))}
           </ul>
         </div>
 
         {!valid && <div className="modal__error">Must have at least 2 contestants</div>}
 
         <div className="modal__footer">
-          <button
-            onClick={onClose}
-            className="modal__btn modal__btn--secondary"
-          >
+          <button onClick={onClose} className="modal__btn modal__btn--secondary">
             Cancel
           </button>
           <button
             disabled={!valid}
-            onClick={() => onSubmit({ takeTop, wildcards, removes, debut: next.map(x=>x.id) })}
+            onClick={() =>
+              onSubmit({
+                takeTop,
+                wildcards,
+                removes,
+                debut: next.map((contestant) => contestant.id),
+              })
+            }
             className="modal__btn modal__btn--primary"
             style={{
-              background:valid?"#B6F3C1":"#DDD",
+              background: valid ? "#B6F3C1" : "#DDD",
               border: "none",
-              cursor:valid?"pointer":"default"
+              cursor: valid ? "pointer" : "default",
             }}
           >
-            {isFinalRound ? 'Finalize Show' : 'Create Next Round'}
+            {isFinalRound ? "Finalize Show" : "Create Next Round"}
           </button>
         </div>
       </div>
