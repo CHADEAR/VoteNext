@@ -3,8 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { getRooms } from "../../services/rooms.service";
 import { deleteRoom } from "../../api/rooms.api";
 import { clearAdminSession } from "../../services/auth.service";
-import { FiEye, FiShare2, FiEdit, FiTrash2 } from "react-icons/fi";
+import { FiEye, FiShare2, FiEdit, FiTrash2, FiWifi } from "react-icons/fi";
 import { FaSearch } from "react-icons/fa";
+import { MdOutlineSettingsRemote } from "react-icons/md";
 import Navbar from "../../components/layout/Navbar";
 import "./AdminDashboard.css";
 
@@ -12,6 +13,23 @@ const MODE_LABEL = {
   all: "All",
   online: "Online",
   remote: "Remote",
+};
+
+const renderVoteModeIcon = (voteMode) => {
+  if (voteMode === "online") {
+    return <FiWifi aria-label="Online mode" title="Online mode" />;
+  }
+
+  if (voteMode === "remote") {
+    return (
+      <MdOutlineSettingsRemote
+        aria-label="Remote mode"
+        title="Remote mode"
+      />
+    );
+  }
+
+  return null;
 };
 
 export default function AdminDashboardPage() {
@@ -233,7 +251,7 @@ export default function AdminDashboardPage() {
               <div className="poll-card" key={room.round_id}>
                 <div className="poll-left">
                   <div className="mode-icon">
-                    {room.vote_mode === "online" ? "📶" : "⬛"}
+                    {renderVoteModeIcon(room.vote_mode)}
                   </div>
 
                   <div>
