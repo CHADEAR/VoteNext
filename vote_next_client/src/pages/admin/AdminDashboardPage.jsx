@@ -72,6 +72,20 @@ export default function AdminDashboardPage() {
     fetchRooms();
   }, []);
 
+  useEffect(() => {
+    if (!shareLink) {
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setShareLink("");
+    }, 3000);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [shareLink]);
+
   const filteredRooms = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     return rooms.filter((room) => {
