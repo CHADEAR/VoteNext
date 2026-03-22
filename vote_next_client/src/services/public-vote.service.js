@@ -20,13 +20,13 @@ export function normalizePublicVote(raw) {
   let startInFuture = false;
 
   if (raw.counter_type === "auto" && start && end) {
-    if (now < start) {
+    if (raw.status === "closed" || now >= end) {
+      computedStatus = "closed";
+    } else if (raw.status === "pending" && now < start) {
       computedStatus = "pending";
       startInFuture = true;
-    } else if (now >= start && now < end) {
-      computedStatus = "voting";
     } else {
-      computedStatus = "closed";
+      computedStatus = "voting";
     }
   }
 

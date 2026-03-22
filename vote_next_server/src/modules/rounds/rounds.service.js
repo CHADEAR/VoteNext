@@ -16,27 +16,46 @@ function normalizeCounterType(counter) {
   return null;
 }
 
+function getNextAutoStatus(round, now = new Date()) {
+  if (round.counter_type !== "auto" || !round.start_time || !round.end_time) {
+    return round.status;
+  }
+
+  if (round.status === "closed") {
+    return "closed";
+  }
+
+  const start = new Date(round.start_time);
+  const end = new Date(round.end_time);
+
+  if (now >= end) {
+    return "closed";
+  }
+
+  if (round.status === "pending" && now >= start) {
+    return "voting";
+  }
+
+  return round.status;
+}
+
 /**
  * ตรวจสอบสถานะ round และ auto-open/auto-close ถ้าถึงเวลา
  * NOTE: auto-start/auto-stop ทำงานเฉพาะ counter_type='auto'
  */
 async function ensureRoundIsUpToDate(round) {
   const now = new Date();
+  const nextStatus = getNextAutoStatus(round, now);
 
-  // ✅ ทำเฉพาะรอบ auto เท่านั้น
-  if (round.counter_type === "auto") {
-    if (round.status === "pending" && round.start_time) {
-      if (now >= new Date(round.start_time)) {
-        await startRoundAuto(round.id);
-        return getRound(round.id);
-      }
+  if (nextStatus !== round.status) {
+    if (nextStatus === "voting") {
+      await startRoundAuto(round.id);
+      return getRound(round.id);
     }
 
-    if (round.status === "voting" && round.end_time) {
-      if (now >= new Date(round.end_time)) {
-        await closeRound(round.id, "auto");
-        return { ...round, status: "closed" };
-      }
+    if (nextStatus === "closed") {
+      await closeRound(round.id, "auto");
+      return { ...round, status: "closed" };
     }
   }
 
@@ -55,7 +74,7 @@ async function startRoundAuto(roundId) {
     await client.query(
       `UPDATE rounds
        SET status='voting',
-           start_time = COALESCE(start_time, NOW())
+           start_time = LEAST(COALESCE(start_time, NOW()), NOW())
        WHERE id = $1 AND status='pending'`,
       [roundId]
     );
@@ -240,7 +259,7 @@ async function startRound(roundId) {
     const updated = await client.query(
       `UPDATE rounds
        SET status='voting',
-           start_time = COALESCE(start_time, NOW())
+           start_time = LEAST(COALESCE(start_time, NOW()), NOW())
        WHERE id = $1 AND status='pending'
        RETURNING id, status, start_time, end_time, counter_type, vote_mode`,
       [roundId]

@@ -56,27 +56,39 @@ export default function PreviewTimeSetting({
   const updateCountdown = useCallback(() => {
     if (counterType !== "auto" || !startDate || !startTime || !endTime) return;
 
-    const now = new Date(); // ใช้ +07 ของ browser
+    const now = new Date();
     const startDT = createThaiDate(startDate, startTime);
     let endDT = createThaiDate(endDate || startDate, endTime);
 
     if (!startDT || !endDT) return;
 
-    // ถ้า end < start → ข้ามวัน
     if (endDT <= startDT) {
       endDT.setDate(endDT.getDate() + 1);
+    }
+
+    if (status === "closed") {
+      setCountdown("Closed");
+      return;
+    }
+
+    if (status === "voting") {
+      if (now < endDT) {
+        const diff = Math.floor((endDT - now) / 1000);
+        setCountdown(`Ends in ${formatCountdown(diff)}`);
+      } else {
+        setCountdown("Closed");
+      }
+      return;
     }
 
     if (now < startDT) {
       const diff = Math.floor((startDT - now) / 1000);
       setCountdown(`Starts in ${formatCountdown(diff)}`);
-    } else if (now >= startDT && now < endDT) {
-      const diff = Math.floor((endDT - now) / 1000);
-      setCountdown(`Ends in ${formatCountdown(diff)}`);
-    } else {
-      setCountdown("Closed");
+      return;
     }
-  }, [counterType, startDate, startTime, endTime, endDate]);
+
+    setCountdown("Ready to start");
+  }, [counterType, endDate, endTime, startDate, startTime, status]);
 
   useEffect(() => {
     if (counterType === "auto") {
@@ -155,7 +167,6 @@ export default function PreviewTimeSetting({
   const renderManualControls = () => {
     const isStartDisabled = status !== "pending" || isStarting;
     const isStopDisabled = status !== "voting" || isStopping;
-    const isBothDisabled = status === "closed";
     
     return (
       <div className="time-controls">
@@ -178,15 +189,24 @@ export default function PreviewTimeSetting({
   };
 
   const renderAutoControls = () => {
-    const isBothDisabled = status === "closed";
+    const isStartDisabled = status !== "pending" || isStarting;
+    const isStopDisabled = status !== "voting" || isStopping;
     
     return (
       <div className="time-controls">
-        <button className="start-btn disabled" disabled>
-          Start
+        <button
+          className={`start-btn ${isStartDisabled ? "disabled" : ""} ${isStarting ? "loading" : ""}`}
+          onClick={handleStartRound}
+          disabled={isStartDisabled}
+        >
+          {isStarting ? "Starting..." : "Start"}
         </button>
-        <button className="stop-btn disabled" disabled>
-          Stop
+        <button
+          className={`stop-btn ${isStopDisabled ? "disabled" : ""} ${isStopping ? "loading" : ""}`}
+          onClick={handleStopRound}
+          disabled={isStopDisabled}
+        >
+          {isStopping ? "Stopping..." : "Stop"}
         </button>
       </div>
     );

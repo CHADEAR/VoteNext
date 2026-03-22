@@ -138,7 +138,7 @@ export default function AdminPreviewVotePollPage() {
 
   // Determine counter type
   const counterType =
-    round.start_time && round.end_time ? "auto" : "manual";
+    round.counter_type || (round.start_time && round.end_time ? "auto" : "manual");
 
   const toDate = (iso) => {
     if (!iso) return "";

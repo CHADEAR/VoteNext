@@ -74,13 +74,30 @@ exports.submitOnlineVote = async ({ roundId, contestantId, email }) => {
     const now = new Date();
     let status = round.db_status;
 
-    if (round.counter_type === "auto" && round.start_time && round.end_time) {
+    if (
+      round.counter_type === "auto" &&
+      round.start_time &&
+      round.end_time &&
+      round.db_status !== "closed"
+    ) {
       const start = new Date(round.start_time);
       const end = new Date(round.end_time);
 
-      if (now < start) status = "pending";
-      else if (now >= start && now < end) status = "voting";
-      else if (now >= end) status = "closed";
+      if (now >= end) {
+        status = "closed";
+      } else if (round.db_status === "pending" && now >= start) {
+        status = "voting";
+      }
+    }
+
+    if (status === "voting" && round.db_status === "pending") {
+      await client.query(
+        `UPDATE rounds
+         SET status='voting',
+             start_time = LEAST(COALESCE(start_time, NOW()), NOW())
+         WHERE id=$1 AND status='pending'`,
+        [roundId]
+      );
     }
 
     if (status === "closed" && round.db_status !== "closed") {

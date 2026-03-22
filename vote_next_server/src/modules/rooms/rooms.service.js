@@ -129,13 +129,17 @@ function computeAutoRoundStatus(round) {
     return round.status;
   }
 
+  if (round.status === "closed") {
+    return "closed";
+  }
+
   const now = new Date();
   const start = new Date(round.start_time);
   const end = new Date(round.end_time);
 
-  if (now < start) return "pending";
-  if (now >= start && now < end) return "voting";
-  return "closed";
+  if (now >= end) return "closed";
+  if (round.status === "pending" && now >= start) return "voting";
+  return round.status;
 }
 
 async function syncAutoRoundStatus(client, round) {
