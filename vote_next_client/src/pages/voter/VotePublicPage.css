@@ -66,6 +66,8 @@
   margin-top: 6px;
   font-size: 14px;
   color: #475569;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 /* ===== Contestant Grid ===== */

@@ -30,6 +30,11 @@
   width: 100%;
 }
 
+.preview-card__description {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .preview-contestant-grid {
   display: flex;
   flex-wrap: wrap;
