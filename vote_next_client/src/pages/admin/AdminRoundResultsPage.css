@@ -544,6 +544,7 @@
 .modal__field {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 10px;
   margin-bottom: 16px;
   font-size: 0.8125rem;
