@@ -1,5 +1,5 @@
 // src/pages/voter/VoteRankPage.jsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { getLiveRankBySlug } from "../../api/rank.api";
 import { io } from "socket.io-client";
@@ -10,7 +10,7 @@ export default function VoteRankPage() {
   const [loading, setLoading] = useState(true);
   const [rankings, setRankings] = useState([]);
 
-  const fetchRank = async () => {
+  const fetchRank = useCallback(async () => {
     try {
       const res = await getLiveRankBySlug(publicSlug);
       let data = res?.data?.data || [];
@@ -20,7 +20,7 @@ export default function VoteRankPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [publicSlug]);
 
   useEffect(() => {
     // Initial fetch
@@ -32,7 +32,7 @@ export default function VoteRankPage() {
     // Use different URLs for development vs production
     const socketUrl = window.location.hostname === 'localhost' 
       ? 'http://localhost:4000'
-      : 'https://votenext.onrender.com/api'; // Replace with your backend URL
+      : 'https://votenext.onrender.com'; // Connect to base server URL for Socket.IO
     
     const socket = io(socketUrl, {
       transports: ['polling', 'websocket'], // Try polling first, then websocket
@@ -72,7 +72,7 @@ export default function VoteRankPage() {
       console.log('🔌 Cleaning up Socket.IO connection...');
       socket.disconnect();
     };
-  }, [publicSlug]);
+  }, [publicSlug, fetchRank]);
 
   if (loading) return <div className="rank-loading">Loading...</div>;
 
