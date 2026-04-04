@@ -8,6 +8,10 @@ console.log("NODE_ENV =", process.env.NODE_ENV);
 const pool = new Pool({
   connectionString: DATABASE_URL,
   ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+  max: 50, // เพิ่มจาก default (20) → 50 รองรับ 20 คน/นาที
+  min: 5,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
 });
 
 pool.query("SELECT current_database(), current_user")

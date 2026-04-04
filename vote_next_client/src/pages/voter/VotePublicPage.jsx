@@ -183,17 +183,34 @@ export default function VotePublicPage() {
     if (!selectedContestant || !poll?.id || !voteToken) return;
     if (!isVotingOpen) return;
 
+    const VOTE_TIMEOUT = 10000; // ✅ เพิ่ม timeout 10 วินาที
+
     try {
       setVoting(true);
-      await submitVote(selectedContestant.id, voteToken);
+      
+      // ✅ เพิ่ม timeout protection
+      await Promise.race([
+        submitVote(selectedContestant.id, voteToken),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Network timeout')), VOTE_TIMEOUT)
+        )
+      ]);
+      
       setShowConfirm(false);
       setShowSuccess(true);
       setError("");
       setHasVotedThisSession(true);
       sessionStorage.removeItem(VOTE_TOKEN_KEY(publicSlug));
     } catch (err) {
-      console.error(err);
-      setError(err?.response?.data?.message || "Vote submission failed. Please try again.");
+      setShowConfirm(false);
+      
+      // ✅ ดักการ timeout error
+      if (err.message === 'Network timeout') {
+        setError("Network unstable. Please check your connection and try again.");
+      } else {
+        console.error(err);
+        setError(err?.response?.data?.message || "Vote submission failed. Please try again.");
+      }
     } finally {
       setVoting(false);
     }

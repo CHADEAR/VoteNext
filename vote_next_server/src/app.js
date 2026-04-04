@@ -3,6 +3,7 @@ const express = require("express");
 const cors = require("cors");
 const path = require("path");
 const routes = require("./routes");
+const rateLimit = require('express-rate-limit');
 const { errorHandler } = require("./middleware/errorHandler");
 
 const app = express();
@@ -41,6 +42,17 @@ const corsOptions = {
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
 };
+
+// rate limiting for high-load scenarios
+const rateLimit = require('express-rate-limit');
+
+app.use(rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 2000, // ✅ เพิ่มจาก 100 → 2000 (รองรับ 20 คน/นาที)
+  message: "Too many requests. Please try again later.",
+  standardHeaders: true,
+  legacyHeaders: false,
+}));
 
 // apply CORS before all middleware
 app.use(cors(corsOptions));

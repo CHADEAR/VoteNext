@@ -111,7 +111,15 @@ exports.submitVote = async (req, res) => {
     });
 
     if (global.io) {
-      global.io.emit("vote_update", { roundId, contestantId });
+      // ✅ ดึงข้อมูลล่าสุดก่อน broadcast
+      const newRankings = await publicService.getLiveRankBySlug(round.publicSlug);
+      
+      global.io.emit("vote_update", { 
+        roundId, 
+        contestantId,
+        rankings: newRankings.data, // ✅ เพิ่ม rankings ทันที
+        timestamp: Date.now()       // ✅ เพิ่ม timestamp
+      });
       console.log(
         `Broadcasted vote update for round ${roundId}, contestant ${contestantId}`
       );
