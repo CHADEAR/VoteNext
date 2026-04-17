@@ -1,37 +1,40 @@
 # VoteNext
 ### Real-time Digital Voting System
 
-VoteNext คือระบบลงคะแนนเสียงรูปแบบดิจิทัลที่มุ่งเน้นความรวดเร็ว แม่นยำ และการแสดงผลแบบเรียลไทม์ ตัวระบบถูกพัฒนาขึ้นโดยแบ่งส่วนการทำงาน (Decoupled Architecture) เพื่อให้ง่ายต่อการขยายระบบและการบำรุงรักษา
+VoteNext is a digital voting platform designed with a focus on speed, precision, and real-time result visualization. The system is built using a **Decoupled Architecture** to ensure high scalability, ease of maintenance, and independent service management.
 
 ---
 
-## 📋 ความต้องการของระบบ (Prerequisites)
+## 📋 Prerequisites
 
-เพื่อให้ระบบสามารถทำงานได้อย่างสมบูรณ์ โปรดตรวจสอบสภาพแวดล้อมในการติดตั้งดังนี้:
-* **Node.js**: แนะนำเวอร์ชัน 18.x LTS ขึ้นไป
-* **Docker & Docker Compose**: สำหรับจัดการ Service พื้นฐานและฐานข้อมูล
-* **Package Manager**: npm หรือ yarn
+To ensure the system operates correctly, please verify that your environment meets the following requirements:
+
+* **Node.js**: Version 18.x LTS or higher is recommended.
+* **Docker & Docker Compose**: Required for managing core services and databases.
+* **Package Manager**: `npm` or `yarn`.
 
 ---
 
-## 🚀 ขั้นตอนการเริ่มใช้งาน (Getting Started)
+## 🚀 Getting Started
 
-### 1. สำหรับการพัฒนา (Development Mode)
-ใช้สำหรับการแก้ไขโค้ดและทดสอบระบบบนเครื่อง Local
+### 1. Development Mode
+Follow these steps to set up the system locally for coding and testing purposes.
 
-**ขั้นตอนการเตรียมระบบพื้นฐาน (Docker):**
+**Infrastructure Setup (Docker):**
+Start the database and necessary background services using the development compose file:
 ```bash
-# เริ่มการทำงานของ Database และ Services ที่จำเป็น
 docker-compose -f docker-compose.dev.yml up -d
+Backend Services Setup:
+Navigate to the server directory to install dependencies and start the API:
 
-ขั้นตอนการเริ่มทำงานส่วน Backend:
-
+Bash
 cd vote_next_server
 npm install
 npm run dev
+Frontend Application Setup:
+Navigate to the client directory to install dependencies and launch the user interface:
 
-ขั้นตอนการเริ่มทำงานส่วน Frontend:
-
+Bash
 cd vote_next_client
 npm install
 npm run dev
